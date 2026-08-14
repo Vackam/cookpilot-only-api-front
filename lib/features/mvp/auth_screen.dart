@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../app/app_theme.dart';
+import '../../design/design_spec.dart';
+import '../../design/design_tokens.dart';
 import '../user/data/beta_user_repository.dart';
 import 'main_shell.dart';
 import 'mvp_widgets.dart';
@@ -27,59 +29,66 @@ class AuthScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return PageShell(
       children: [
-        const SizedBox(height: 40),
+        SizedBox(height: space.iconHero),
         Center(
           child: Container(
-            width: 64,
-            height: 64,
+            width: space.brandMarkSize,
+            height: space.brandMarkSize,
             decoration: BoxDecoration(
-              color: AppColors.accent,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [
+              color: color.accent,
+              borderRadius: BorderRadius.circular(space.radiusXl),
+              boxShadow: [
                 BoxShadow(
-                  color: AppColors.shadow,
-                  blurRadius: 18,
-                  offset: Offset(0, 6),
+                  color: color.shadow,
+                  blurRadius: space.shadowBlur,
+                  offset: Offset(0, space.shadowLift),
                 ),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               Icons.local_fire_department_rounded,
-              color: Colors.white,
-              size: 36,
+              color: color.onAccent,
+              size: space.iconHero,
             ),
           ),
         ),
-        const SizedBox(height: 18),
+        SizedBox(height: space.sectionGap),
         Text(
           'CookPilot',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-            color: AppColors.ink,
-            fontWeight: FontWeight.w900,
+          style: type.headlineLarge.copyWith(
+            color: color.ink,
+            fontWeight: type.black,
           ),
         ),
-        const SizedBox(height: 8),
-        const Text(
+        SizedBox(height: space.snugGap),
+        Text(
           '내 입맛을 기억하는 요리 파트너',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.slate, fontSize: 15),
+          style: type.label.copyWith(
+            color: color.slate,
+            fontWeight: type.regular,
+          ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: space.majorGap),
         PressableScale(
           child: FilledButton.icon(
+            // 카카오 브랜드 색은 디자인 안과 무관하게 고정한다.
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.kakao,
-              foregroundColor: const Color(0xFF191600),
+              backgroundColor: BrandColors.kakao,
+              foregroundColor: BrandColors.kakaoInk,
             ),
             onPressed: () => _openHome(context),
             icon: const Icon(Icons.chat_bubble_rounded),
             label: const Text('카카오로 시작하기'),
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: space.itemGap),
         PressableScale(
           child: OutlinedButton.icon(
             onPressed: () => _openHome(context),
@@ -87,29 +96,29 @@ class AuthScreen extends StatelessWidget {
             label: const Text('Google로 시작하기'),
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 18),
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: space.sectionGap),
           child: Row(
             children: [
-              Expanded(child: Divider()),
+              const Expanded(child: Divider()),
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
+                padding: EdgeInsets.symmetric(horizontal: space.blockGap),
                 child: Text(
                   '또는 이메일로',
-                  style: TextStyle(color: AppColors.muted),
+                  style: type.body.copyWith(color: color.muted),
                 ),
               ),
-              Expanded(child: Divider()),
+              const Expanded(child: Divider()),
             ],
           ),
         ),
         const TextField(decoration: InputDecoration(labelText: '이메일')),
-        const SizedBox(height: 10),
+        SizedBox(height: space.itemGap),
         const TextField(
           obscureText: true,
           decoration: InputDecoration(labelText: '비밀번호'),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: space.blockGap),
         PressableScale(
           child: FilledButton(
             onPressed: () => _openHome(context),
@@ -166,6 +175,9 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return PageShell(
       title: '내 입맛 설정',
       leading: IconButton(
@@ -177,22 +189,22 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
           '끌리는 음식을 3개 이상 골라주세요',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w900,
-            color: AppColors.ink,
+          style: type.titleLarge.copyWith(
+            fontWeight: type.black,
+            color: color.ink,
           ),
         ),
-        const SizedBox(height: 8),
-        const Text(
+        SizedBox(height: space.snugGap),
+        Text(
           '고른 음식으로 입맛 프로필을 만들어요.',
-          style: TextStyle(color: AppColors.slate),
+          style: type.body.copyWith(color: color.slate),
         ),
-        const SizedBox(height: 22),
+        SizedBox(height: space.majorGap),
         GridView.count(
           crossAxisCount: 3,
           shrinkWrap: true,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
+          mainAxisSpacing: space.itemGap,
+          crossAxisSpacing: space.itemGap,
           childAspectRatio: 1,
           physics: const NeverScrollableScrollPhysics(),
           children: [
@@ -220,9 +232,7 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
                 label.startsWith('신라면')
                     ? Icons.radio_button_checked_rounded
                     : Icons.radio_button_off_rounded,
-                color: label.startsWith('신라면')
-                    ? AppColors.accent
-                    : AppColors.muted,
+                color: label.startsWith('신라면') ? color.accent : color.muted,
               ),
               title: Text(label),
               subtitle: Text(label.startsWith('신라면') ? '맵기 2~3' : '맵기 선택'),
@@ -275,18 +285,21 @@ class _TasteOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return PressableScale(
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppShape.inner),
+        borderRadius: BorderRadius.circular(space.radiusLg),
         onTap: onTap,
         child: AnimatedContainer(
           duration: AppMotion.short,
           curve: AppMotion.easeInOut,
           decoration: BoxDecoration(
-            color: selected ? AppColors.accentSoft : AppColors.card,
-            borderRadius: BorderRadius.circular(AppShape.inner),
+            color: selected ? color.accentSoft : color.card,
+            borderRadius: BorderRadius.circular(space.radiusLg),
             border: Border.all(
-              color: selected ? AppColors.accent : AppColors.line,
+              color: selected ? color.accent : color.line,
               width: selected ? 1.4 : 1,
             ),
           ),
@@ -294,23 +307,29 @@ class _TasteOption extends StatelessWidget {
             children: [
               Positioned.fill(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 30),
+                  // 아래쪽만 크게 비워 라벨이 앉을 자리를 남긴다.
+                  padding: EdgeInsets.fromLTRB(
+                    space.cardPadding,
+                    space.blockGap,
+                    space.cardPadding,
+                    space.majorGap + space.tightGap,
+                  ),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: AppColors.wash,
-                      borderRadius: BorderRadius.circular(10),
+                      color: color.wash,
+                      borderRadius: BorderRadius.circular(space.radiusMd),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.restaurant_menu_rounded,
-                      color: Color(0xFFC08A5A),
-                      size: 26,
+                      color: color.placeholderIcon,
+                      size: space.iconLg,
                     ),
                   ),
                 ),
               ),
               Positioned(
-                right: 8,
-                top: 8,
+                right: space.snugGap,
+                top: space.snugGap,
                 child: AnimatedScale(
                   scale: selected ? 1 : 0.6,
                   duration: AppMotion.fast,
@@ -319,27 +338,26 @@ class _TasteOption extends StatelessWidget {
                     opacity: selected ? 1 : 0,
                     duration: AppMotion.fast,
                     curve: AppMotion.easeOut,
-                    child: const Icon(
+                    child: Icon(
                       Icons.check_circle,
-                      color: AppColors.accent,
-                      size: 18,
+                      color: color.accent,
+                      size: space.iconMd,
                     ),
                   ),
                 ),
               ),
               Positioned(
-                left: 8,
-                right: 8,
-                bottom: 8,
+                left: space.snugGap,
+                right: space.snugGap,
+                bottom: space.snugGap,
                 child: Text(
                   label,
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.ink,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                  style: type.small.copyWith(
+                    color: color.ink,
+                    fontWeight: type.bold,
                   ),
                 ),
               ),

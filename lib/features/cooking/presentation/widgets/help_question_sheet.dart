@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../design/cookpilot_spacing.dart';
+import '../../../../design/design_tokens.dart';
 import '../../application/cooking_ports.dart';
 
 /// 음성 폴백용 질문 입력 시트. 제출한 질문 문자열을 반환하고,
@@ -40,33 +40,31 @@ final class _HelpQuestionSheetState extends State<HelpQuestionSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     // 키보드가 올라온 상태에서 가용 높이를 넘으면 스크롤로 대응한다.
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(CookPilotSpacing.lg),
+        padding: EdgeInsets.all(space.sectionGap),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Text('무엇이 문제인가요?', style: theme.textTheme.titleMedium),
-            const SizedBox(height: CookPilotSpacing.xs),
+            Text('무엇이 문제인가요?', style: type.subtitle),
+            SizedBox(height: space.hairGap),
             Text(
               '현재 단계에 맞춰 대처 방법을 알려드려요.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              style: type.body.copyWith(color: color.slate),
             ),
-            const SizedBox(height: CookPilotSpacing.xs),
+            SizedBox(height: space.hairGap),
             Text(
               '질문은 Google Gemini로 전송될 수 있어요. '
               '개인정보·건강정보는 입력하지 마세요.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              style: type.caption.copyWith(color: color.slate),
             ),
-            const SizedBox(height: CookPilotSpacing.md),
+            SizedBox(height: space.blockGap),
             TextField(
               key: const Key('help-question-field'),
               controller: _question,
@@ -79,16 +77,14 @@ final class _HelpQuestionSheetState extends State<HelpQuestionSheet> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: CookPilotSpacing.md),
+            SizedBox(height: space.blockGap),
             ValueListenableBuilder<TextEditingValue>(
               valueListenable: _question,
               builder: (context, value, _) => FilledButton(
                 key: const Key('help-question-submit'),
                 onPressed: value.text.trim().isEmpty ? null : _submit,
                 style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(
-                    CookPilotSpacing.sessionActionHeight,
-                  ),
+                  minimumSize: Size.fromHeight(space.compactControlHeight),
                 ),
                 child: const Text('질문하기'),
               ),

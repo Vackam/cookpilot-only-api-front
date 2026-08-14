@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../app/app_theme.dart';
+import '../../design/design_tokens.dart';
 import '../cooking/application/cooking_session_store.dart';
 import '../cooking/data/exception_advice_api.dart';
 import '../cooking/presentation/native_speech_output.dart';
@@ -183,21 +184,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      final pendingReviewDraft = await _pendingReviewDraftLoader();
-      if (!_isCurrentRecovery(generation)) {
-        return;
-      }
-      if (pendingReviewDraft != null) {
-        setState(() {
-          _recoveryLoading = false;
-          _recoveryError = null;
-          _pendingReviewDraft = pendingReviewDraft;
-          _resumableSession = null;
-          _resumableRecipe = null;
-        });
-        return;
-      }
-
+      // 후기 초안과 이어서 할 조리는 서로를 밀어내지 않는다. 둘 다 조회해서
+      // 둘 다 카드로 띄운다.
       _ResumableCooking? resumableCooking;
       Object? resumableCookingError;
       StackTrace? resumableCookingStackTrace;
@@ -210,14 +198,14 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!_isCurrentRecovery(generation)) {
         return;
       }
-      // The active-session lookup can outlive cooking completion. Re-read the
-      // draft even when that lookup failed, so a review created while it was
-      // running still wins.
-      final latestPendingReviewDraft = await _pendingReviewDraftLoader();
+      // 조리 세션 조회는 조리 완료보다 늦게 끝날 수 있다. 그 사이에 생긴 초안도
+      // 잡히도록 조회 뒤에 읽는다.
+      final pendingReviewDraft = await _pendingReviewDraftLoader();
       if (!_isCurrentRecovery(generation)) {
         return;
       }
-      if (latestPendingReviewDraft == null && resumableCookingError != null) {
+      // 보여 줄 것이 아무것도 없을 때만 조회 실패를 오류로 올린다.
+      if (pendingReviewDraft == null && resumableCookingError != null) {
         Error.throwWithStackTrace(
           resumableCookingError,
           resumableCookingStackTrace!,
@@ -226,13 +214,9 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _recoveryLoading = false;
         _recoveryError = null;
-        _pendingReviewDraft = latestPendingReviewDraft;
-        _resumableSession = latestPendingReviewDraft == null
-            ? resumableCooking?.session
-            : null;
-        _resumableRecipe = latestPendingReviewDraft == null
-            ? resumableCooking?.recipe
-            : null;
+        _pendingReviewDraft = pendingReviewDraft;
+        _resumableSession = resumableCooking?.session;
+        _resumableRecipe = resumableCooking?.recipe;
       });
     } on Object catch (error) {
       if (!_isCurrentRecovery(generation)) {
@@ -336,40 +320,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final generation = ++_recoveryGeneration;
     setState(() => _resumingCooking = true);
     try {
-      final PendingReviewDraft? latestPendingReviewDraft;
-      try {
-        latestPendingReviewDraft = await _pendingReviewDraftLoader();
-      } on Object catch (error) {
-        if (_isCurrentRecovery(generation)) {
-          setState(() {
-            _recoveryLoading = false;
-            _recoveryError = error;
-            _pendingReviewDraft = null;
-            _resumableSession = null;
-            _resumableRecipe = null;
-          });
-        }
-        return;
-      }
       if (!_isCurrentRecovery(generation)) {
         return;
       }
-      // Keep the explicit check for BuildContext use after the async load.
       if (!mounted) {
-        return;
-      }
-      if (latestPendingReviewDraft != null) {
-        setState(() {
-          _recoveryLoading = false;
-          _recoveryError = null;
-          _pendingReviewDraft = latestPendingReviewDraft;
-          _resumableSession = null;
-          _resumableRecipe = null;
-        });
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('작성 중인 후기를 먼저 이어갈게요.')));
-        await _openPendingReview();
         return;
       }
 
@@ -412,13 +366,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _refreshAll,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            padding: space.screenPadding,
             children: [
               Row(
                 children: [
@@ -426,70 +383,68 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           '셰프님 👋',
-                          style: TextStyle(
-                            color: AppColors.slate,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                          style: type.body.copyWith(
+                            color: color.slate,
+                            fontWeight: type.medium,
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        SizedBox(height: space.hairGap),
                         Text(
                           _greeting,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.headlineSmall?.copyWith(fontSize: 22),
+                          style: type.titleLarge,
                         ),
                       ],
                     ),
                   ),
                   PressableScale(
                     child: Container(
-                      width: 44,
-                      height: 44,
+                      width: space.avatarSize,
+                      height: space.avatarSize,
                       decoration: BoxDecoration(
-                        color: AppColors.accentSoft,
+                        color: color.accentSoft,
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.line),
+                        border: Border.all(color: color.line),
                       ),
-                      child: const Icon(
-                        Icons.person_rounded,
-                        color: AppColors.accent,
-                      ),
+                      child: Icon(Icons.person_rounded, color: color.accent),
                     ),
                   ),
                 ],
               ),
               if (_recoveryLoading) ...[
-                const SizedBox(height: 18),
+                SizedBox(height: space.sectionGap),
                 const _HomeRecoveryLoadingCard(),
               ] else if (_recoveryError != null) ...[
-                const SizedBox(height: 18),
+                SizedBox(height: space.sectionGap),
                 _HomeRecoveryErrorCard(
                   onRetry: () => unawaited(_refreshRecovery()),
                 ),
-              ] else if (_pendingReviewDraft
-                  case final PendingReviewDraft draft) ...[
-                const SizedBox(height: 18),
-                _ResumeReviewCard(
-                  draft: draft,
-                  onTap: () => unawaited(_openPendingReview()),
-                ),
-              ] else if (_resumableSession
-                  case final PersistedCookingSession session) ...[
-                const SizedBox(height: 18),
-                _ResumeCookingCard(
-                  session: session,
-                  stepCount:
-                      _resumableRecipe?.steps.length ?? session.stepIndex + 1,
-                  checkingPendingReview: _resumingCooking,
-                  onTap: _resumingCooking
-                      ? null
-                      : () => unawaited(_resumeCooking()),
-                ),
+              ] else ...[
+                // 후기 초안과 이어서 할 조리는 서로를 가리지 않는다. 후기를 쓸지는
+                // 사용자가 정할 일이라, 조리 진입을 막는 대신 여기서 나란히 알린다.
+                if (_pendingReviewDraft
+                    case final PendingReviewDraft draft) ...[
+                  SizedBox(height: space.sectionGap),
+                  _ResumeReviewCard(
+                    draft: draft,
+                    onTap: () => unawaited(_openPendingReview()),
+                  ),
+                ],
+                if (_resumableSession
+                    case final PersistedCookingSession session) ...[
+                  _ResumeCookingCard(
+                    session: session,
+                    stepCount:
+                        _resumableRecipe?.steps.length ?? session.stepIndex + 1,
+                    opening: _resumingCooking,
+                    onTap: _resumingCooking
+                        ? null
+                        : () => unawaited(_resumeCooking()),
+                  ),
+                ],
               ],
               FutureBuilder<_HomeCatalog>(
                 future: _catalog,
@@ -534,7 +489,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       else
                         for (final recipe in catalog.recent.take(3))
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
+                            padding: EdgeInsets.only(bottom: space.itemGap),
                             child: _RecipeSummaryTile(
                               summary: recipe,
                               onChanged: _refreshHome,
@@ -550,7 +505,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       else
                         for (final recipe in catalog.favorites.take(3))
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
+                            padding: EdgeInsets.only(bottom: space.itemGap),
                             child: _RecipeSummaryTile(
                               summary: recipe,
                               onChanged: _refreshHome,
@@ -559,7 +514,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       SectionTitle('전체 레시피 ${catalog.summaries.length}'),
                       for (final recipe in catalog.summaries)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
+                          padding: EdgeInsets.only(bottom: space.itemGap),
                           child: _RecipeSummaryTile(
                             summary: recipe,
                             onChanged: _refreshHome,
@@ -602,13 +557,15 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final space = context.space;
     return PageShell(
       title: '검색',
       children: [
         TextField(
           onChanged: (value) => setState(() => _query = value.trim()),
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search_rounded, color: AppColors.muted),
+          decoration: InputDecoration(
+            prefixIcon: Icon(Icons.search_rounded, color: color.muted),
             hintText: '레시피 이름 또는 설명 검색',
           ),
         ),
@@ -642,7 +599,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 SectionTitle('검색 결과 ${items.length}'),
                 for (final recipe in items)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
+                    padding: EdgeInsets.only(bottom: space.itemGap),
                     child: _RecipeSummaryTile(
                       summary: recipe,
                       onChanged: _retry,
@@ -725,6 +682,9 @@ class _MemoryScreenState extends State<MemoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return PageShell(
       title: '레시피 메모리',
       children: [
@@ -738,9 +698,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
               child: Text(
                 '${_month.year}년 ${_month.month}월',
                 textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                style: type.title.copyWith(fontWeight: type.black),
               ),
             ),
             IconButton(
@@ -771,7 +729,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 8),
+                SizedBox(height: space.snugGap),
                 Row(
                   children: [
                     for (final day in ['일', '월', '화', '수', '목', '금', '토'])
@@ -779,22 +737,21 @@ class _MemoryScreenState extends State<MemoryScreen> {
                         child: Text(
                           day,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                          style: type.small.copyWith(
+                            color: color.muted,
+                            fontWeight: type.bold,
                           ),
                         ),
                       ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: space.snugGap),
                 GridView.count(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisCount: 7,
-                  mainAxisSpacing: 5,
-                  crossAxisSpacing: 5,
+                  mainAxisSpacing: space.tightGap,
+                  crossAxisSpacing: space.tightGap,
                   children: [
                     for (var index = 0; index < _month.weekday % 7; index++)
                       const SizedBox.shrink(),
@@ -828,16 +785,16 @@ class _MemoryScreenState extends State<MemoryScreen> {
                 else
                   for (final entry in selectedEntries)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
+                      padding: EdgeInsets.only(bottom: space.itemGap),
                       child: FoodTile(
                         title: entry.recipeTitle,
                         subtitle:
                             '${entry.rating == null ? '평점 없음' : '★ ${entry.rating}'}'
                             '${entry.createdPersonalVersionNumber == null ? '' : ' · 개인 v${entry.createdPersonalVersionNumber}'}',
                         image: entry.recipeImageUrl,
-                        trailing: const Icon(
+                        trailing: Icon(
                           Icons.chevron_right_rounded,
-                          color: AppColors.muted,
+                          color: color.muted,
                         ),
                         onTap: () => _openHistoryDetail(entry, entries),
                       ),
@@ -863,6 +820,9 @@ class CookingHistoryDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     final otherEntries = sameRecipeEntries
         .where((item) => item.reviewId != entry.reviewId)
         .toList(growable: false);
@@ -879,23 +839,23 @@ class CookingHistoryDetailScreen extends StatelessWidget {
       children: [
         Text(
           entry.recipeTitle,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: AppColors.ink,
-            fontWeight: FontWeight.w900,
+          style: type.titleLarge.copyWith(
+            color: color.ink,
+            fontWeight: type.black,
           ),
         ),
-        const SizedBox(height: 7),
+        SizedBox(height: space.tightGap),
         Text(
           _fullDateLabel(entry.cookedAt),
-          style: const TextStyle(
-            color: AppColors.slate,
-            fontWeight: FontWeight.w600,
+          style: type.body.copyWith(
+            color: color.slate,
+            fontWeight: type.semiBold,
           ),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: space.screenPaddingX),
         _CookingResultOverview(entry: entry, recipeSource: recipeSource),
         if (entry.createdPersonalVersionNumber case final int number) ...[
-          const SizedBox(height: 14),
+          SizedBox(height: space.blockGap),
           InfoStrip(
             icon: Icons.auto_awesome_rounded,
             title: '개인 레시피 v$number 생성',
@@ -937,48 +897,47 @@ class _CookingResultOverview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(space.cardPadding),
       decoration: BoxDecoration(
-        color: AppColors.wash,
-        borderRadius: BorderRadius.circular(AppShape.container),
-        border: Border.all(color: AppColors.line),
+        color: color.wash,
+        borderRadius: BorderRadius.circular(space.radiusXl),
+        border: Border.all(color: color.line),
       ),
       child: Row(
         children: [
           Container(
-            width: 54,
-            height: 54,
+            width: space.avatarLargeSize,
+            height: space.avatarLargeSize,
             decoration: BoxDecoration(
-              color: AppColors.accentSoft,
-              borderRadius: BorderRadius.circular(AppShape.inner),
+              color: color.accentSoft,
+              borderRadius: BorderRadius.circular(space.radiusLg),
             ),
-            child: const Icon(
-              Icons.restaurant_rounded,
-              color: AppColors.accent,
-            ),
+            child: Icon(Icons.restaurant_rounded, color: color.accent),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: space.blockGap),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   recipeSource,
-                  style: const TextStyle(
-                    color: AppColors.slate,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                  style: type.caption.copyWith(
+                    color: color.slate,
+                    fontWeight: type.bold,
                   ),
                 ),
-                const SizedBox(height: 5),
+                SizedBox(height: space.tightGap),
                 Text(
                   _ratingLabel(entry.rating),
-                  style: const TextStyle(
-                    color: AppColors.ink,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5,
+                  // 별 문자열이 뭉치지 않도록 이 자리만 자간을 양수로 벌린다.
+                  style: type.lead.copyWith(
+                    color: color.ink,
+                    fontWeight: type.black,
+                    letterSpacing: -type.tightTracking,
                   ),
                 ),
               ],
@@ -998,26 +957,28 @@ class _MemoryNoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(17),
+      padding: EdgeInsets.all(space.cardPadding),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppShape.inner),
-        border: Border.all(color: AppColors.line),
+        color: color.card,
+        borderRadius: BorderRadius.circular(space.radiusLg),
+        border: Border.all(color: color.line),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.accent, size: 22),
-          const SizedBox(width: 11),
+          Icon(icon, color: color.accent, size: space.iconLg),
+          SizedBox(width: space.itemGap),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                color: AppColors.ink,
-                height: 1.5,
-                fontWeight: FontWeight.w600,
+              style: type.body.copyWith(
+                color: color.ink,
+                fontWeight: type.semiBold,
               ),
             ),
           ),
@@ -1038,59 +999,61 @@ class _CookingHistoryTimelineItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     final version = entry.createdPersonalVersionNumber;
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: 22,
+            width: space.iconLg,
             child: Column(
               children: [
                 Container(
-                  width: 10,
-                  height: 10,
-                  decoration: const BoxDecoration(
-                    color: AppColors.accent,
+                  width: space.itemGap,
+                  height: space.itemGap,
+                  decoration: BoxDecoration(
+                    color: color.accent,
                     shape: BoxShape.circle,
                   ),
                 ),
                 if (!isLast)
-                  Expanded(child: Container(width: 2, color: AppColors.line)),
+                  Expanded(
+                    child: Container(width: space.hairGap, color: color.line),
+                  ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: space.itemGap),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 18),
+              padding: EdgeInsets.only(bottom: space.sectionGap),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     _fullDateLabel(entry.cookedAt),
-                    style: const TextStyle(
-                      color: AppColors.ink,
-                      fontWeight: FontWeight.w800,
+                    style: type.body.copyWith(
+                      color: color.ink,
+                      fontWeight: type.extraBold,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: space.hairGap),
                   Text(
                     '${_ratingLabel(entry.rating)}'
                     '${version == null ? '' : ' · 개인 v$version 생성'}',
-                    style: const TextStyle(
-                      color: AppColors.slate,
-                      fontSize: 13,
-                    ),
+                    style: type.caption.copyWith(color: color.slate),
                   ),
                   if (entry.comment case final String comment
                       when comment.isNotEmpty) ...[
-                    const SizedBox(height: 5),
+                    SizedBox(height: space.tightGap),
                     Text(
                       comment,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.slate),
+                      style: type.body.copyWith(color: color.slate),
                     ),
                   ],
                 ],
@@ -1128,47 +1091,47 @@ class _MemoryCalendarDay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(space.radiusMd),
       onTap: onTap,
       child: AnimatedContainer(
         duration: AppMotion.fast,
         decoration: BoxDecoration(
-          color: selected ? AppColors.accentSoft : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? AppColors.accent : AppColors.line,
-          ),
+          color: selected ? color.accentSoft : Colors.transparent,
+          borderRadius: BorderRadius.circular(space.radiusMd),
+          border: Border.all(color: selected ? color.accent : color.line),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               '$day',
-              style: TextStyle(
-                color: selected ? AppColors.accent : AppColors.ink,
-                fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+              style: type.body.copyWith(
+                color: selected ? color.accent : color.ink,
+                fontWeight: selected ? type.black : type.semiBold,
               ),
             ),
-            const SizedBox(height: 3),
+            SizedBox(height: space.hairGap),
             if (count > 0)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                padding: EdgeInsets.symmetric(horizontal: space.tightGap),
                 decoration: BoxDecoration(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.circular(99),
+                  color: color.accent,
+                  borderRadius: BorderRadius.circular(space.radiusPill),
                 ),
                 child: Text(
                   '$count',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
+                  style: type.micro.copyWith(
+                    color: color.onAccent,
+                    fontWeight: type.extraBold,
                   ),
                 ),
               )
             else
-              const SizedBox(height: 13),
+              SizedBox(height: space.blockGap),
           ],
         ),
       ),
@@ -1187,27 +1150,30 @@ class _HomeRecoveryLoadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(space.cardPadding),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppShape.container),
-        border: Border.all(color: AppColors.line),
+        color: color.surface,
+        borderRadius: BorderRadius.circular(space.radiusXl),
+        border: Border.all(color: color.line),
       ),
-      child: const Row(
+      child: Row(
         children: [
           SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
+            width: space.iconLg,
+            height: space.iconLg,
+            child: const CircularProgressIndicator(strokeWidth: 2.5),
           ),
-          SizedBox(width: 13),
+          SizedBox(width: space.blockGap),
           Expanded(
             child: Text(
               '저장된 진행 상황을 확인하고 있어요.',
-              style: TextStyle(
-                color: AppColors.slate,
-                fontWeight: FontWeight.w700,
+              style: type.body.copyWith(
+                color: color.slate,
+                fontWeight: type.bold,
               ),
             ),
           ),
@@ -1224,37 +1190,40 @@ class _HomeRecoveryErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(space.cardPadding),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppShape.container),
-        border: Border.all(color: AppColors.line),
+        color: color.surface,
+        borderRadius: BorderRadius.circular(space.radiusXl),
+        border: Border.all(color: color.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.error_outline_rounded, color: AppColors.accent),
-              SizedBox(width: 9),
+              Icon(Icons.error_outline_rounded, color: color.accent),
+              SizedBox(width: space.snugGap),
               Expanded(
                 child: Text(
                   '저장된 진행 상황을 불러오지 못했어요.',
-                  style: TextStyle(
-                    color: AppColors.ink,
-                    fontWeight: FontWeight.w800,
+                  style: type.body.copyWith(
+                    color: color.ink,
+                    fontWeight: type.extraBold,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 7),
-          const Text(
+          SizedBox(height: space.tightGap),
+          Text(
             '후기나 조리 세션이 남아 있을 수 있어요. 다시 확인해 주세요.',
-            style: TextStyle(color: AppColors.slate, fontSize: 13),
+            style: type.caption.copyWith(color: color.slate),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: space.blockGap),
           OutlinedButton(onPressed: onRetry, child: const Text('다시 시도')),
         ],
       ),
@@ -1270,63 +1239,61 @@ class _ResumeReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return PressableScale(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(space.cardPadding),
           decoration: BoxDecoration(
-            color: AppColors.accentSoft,
-            borderRadius: BorderRadius.circular(AppShape.container),
-            border: Border.all(color: AppColors.line),
+            color: color.accentSoft,
+            borderRadius: BorderRadius.circular(space.radiusXl),
+            border: Border.all(color: color.line),
           ),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
-                decoration: const BoxDecoration(
-                  color: AppColors.accent,
+                width: space.avatarSize,
+                height: space.avatarSize,
+                decoration: BoxDecoration(
+                  color: color.accent,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.rate_review_rounded,
-                  color: Colors.white,
-                ),
+                child: Icon(Icons.rate_review_rounded, color: color.onAccent),
               ),
-              const SizedBox(width: 13),
+              SizedBox(width: space.blockGap),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '후기 작성 이어가기',
-                      style: TextStyle(
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
+                      style: type.caption.copyWith(
+                        color: color.accent,
+                        fontWeight: type.extraBold,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: space.hairGap),
                     Text(
                       draft.setupSnapshot.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.ink,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
+                      style: type.subtitle.copyWith(
+                        color: color.ink,
+                        fontWeight: type.extraBold,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    const Text(
+                    SizedBox(height: space.hairGap),
+                    Text(
                       '작성 중인 내용을 확인하고 저장해 주세요.',
-                      style: TextStyle(color: AppColors.slate, fontSize: 13),
+                      style: type.caption.copyWith(color: color.slate),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+              Icon(Icons.chevron_right_rounded, color: color.muted),
             ],
           ),
         ),
@@ -1339,84 +1306,81 @@ class _ResumeCookingCard extends StatelessWidget {
   const _ResumeCookingCard({
     required this.session,
     required this.stepCount,
-    required this.checkingPendingReview,
+    required this.opening,
     required this.onTap,
   });
 
   final PersistedCookingSession session;
   final int stepCount;
-  final bool checkingPendingReview;
+
+  /// 조리 화면을 여는 중. 카드를 잠그고 라벨을 바꾼다.
+  final bool opening;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return PressableScale(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(space.cardPadding),
           decoration: BoxDecoration(
-            color: AppColors.accentSoft,
-            borderRadius: BorderRadius.circular(AppShape.container),
-            border: Border.all(color: AppColors.line),
+            color: color.accentSoft,
+            borderRadius: BorderRadius.circular(space.radiusXl),
+            border: Border.all(color: color.line),
           ),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
-                decoration: const BoxDecoration(
-                  color: AppColors.accent,
+                width: space.avatarSize,
+                height: space.avatarSize,
+                decoration: BoxDecoration(
+                  color: color.accent,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.white,
-                ),
+                child: Icon(Icons.play_arrow_rounded, color: color.onAccent),
               ),
-              const SizedBox(width: 13),
+              SizedBox(width: space.blockGap),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      checkingPendingReview ? '후기 상태 확인 중' : '이어서 요리하기',
-                      style: const TextStyle(
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
+                      opening ? '조리 화면 여는 중' : '이어서 요리하기',
+                      style: type.caption.copyWith(
+                        color: color.accent,
+                        fontWeight: type.extraBold,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: space.hairGap),
                     Text(
                       session.recipeTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.ink,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
+                      style: type.subtitle.copyWith(
+                        color: color.ink,
+                        fontWeight: type.extraBold,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: space.hairGap),
                     Text(
                       '${session.stepIndex + 1} / $stepCount 단계',
-                      style: const TextStyle(
-                        color: AppColors.slate,
-                        fontSize: 13,
-                      ),
+                      style: type.caption.copyWith(color: color.slate),
                     ),
                   ],
                 ),
               ),
-              if (checkingPendingReview)
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+              if (opening)
+                SizedBox(
+                  width: space.iconLg,
+                  height: space.iconLg,
+                  child: const CircularProgressIndicator(strokeWidth: 2),
                 )
               else
-                const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+                Icon(Icons.chevron_right_rounded, color: color.muted),
             ],
           ),
         ),
@@ -1439,7 +1403,7 @@ class _RecipeSummaryTile extends StatelessWidget {
       image: summary.imageUrl,
       trailing: Icon(
         summary.favorite ? Icons.bookmark_rounded : Icons.chevron_right_rounded,
-        color: summary.favorite ? AppColors.accent : AppColors.muted,
+        color: summary.favorite ? context.color.accent : context.color.muted,
       ),
       onTap: () async {
         await Navigator.of(context).push(
@@ -1503,9 +1467,9 @@ class _RecipeLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(top: 48),
-      child: Center(child: CircularProgressIndicator()),
+    return Padding(
+      padding: EdgeInsets.only(top: context.space.sectionBreak),
+      child: const Center(child: CircularProgressIndicator()),
     );
   }
 }
@@ -1517,24 +1481,31 @@ class _RecipeLoadError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Padding(
-      padding: const EdgeInsets.only(top: 36),
+      padding: EdgeInsets.only(top: space.sectionBreak),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.cloud_off_rounded, color: AppColors.muted, size: 40),
-          const SizedBox(height: 12),
-          const Text(
-            '레시피를 불러오지 못했어요.',
-            style: TextStyle(fontWeight: FontWeight.w700),
+          Icon(
+            Icons.cloud_off_rounded,
+            color: color.muted,
+            size: space.iconHero,
           ),
-          const SizedBox(height: 6),
-          const Text(
+          SizedBox(height: space.blockGap),
+          Text(
+            '레시피를 불러오지 못했어요.',
+            style: type.body.copyWith(fontWeight: type.bold),
+          ),
+          SizedBox(height: space.tightGap),
+          Text(
             '백엔드 서버 연결을 확인한 뒤 다시 시도해 주세요.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.slate),
+            style: type.body.copyWith(color: color.slate),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: space.blockGap),
           OutlinedButton(onPressed: onRetry, child: const Text('다시 시도')),
         ],
       ),
@@ -1550,12 +1521,12 @@ class _RecipeEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 48),
+      padding: EdgeInsets.only(top: context.space.sectionBreak),
       child: Center(
         child: Text(
           message,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.slate),
+          style: context.type.body.copyWith(color: context.color.slate),
         ),
       ),
     );

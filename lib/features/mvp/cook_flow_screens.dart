@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../app/app_theme.dart';
 import '../../core/identity/uuid_v4.dart';
+import '../../design/design_tokens.dart';
 import '../cooking/application/cooking_coach_controller.dart';
 import '../cooking/application/cooking_ports.dart';
 import '../cooking/application/cooking_session_store.dart';
@@ -30,6 +31,9 @@ import '../review/data/personal_version_approval_api.dart';
 import '../review/data/review_api.dart';
 import '../review/data/review_photo_upload_api.dart';
 import '../review/presentation/review_photo_picker.dart';
+import 'cook_layouts/cook_layout.dart';
+import 'cook_layouts/cook_layout_catalog.dart';
+import 'cook_layouts/cook_session_view_model.dart';
 import 'main_shell.dart';
 import 'mvp_widgets.dart';
 
@@ -82,15 +86,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   Widget build(BuildContext context) {
     final canCook = recipe.steps.isNotEmpty;
 
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return PopScope(
       canPop: !_savingFavorite,
       child: Scaffold(
         body: CustomScrollView(
           slivers: [
             SliverAppBar(
-              expandedHeight: 300,
+              expandedHeight: space.heroImageHeight,
               pinned: true,
-              backgroundColor: AppColors.surface,
+              backgroundColor: color.surface,
               leading: _CircleAction(
                 icon: Icons.chevron_left_rounded,
                 onTap: () => Navigator.of(context).pop(),
@@ -102,9 +109,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       : Icons.bookmark_outline_rounded,
                   onTap: _savingFavorite ? null : _toggleFavorite,
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: space.tightGap),
                 const _CircleAction(icon: Icons.ios_share_rounded),
-                const SizedBox(width: 12),
+                SizedBox(width: space.blockGap),
               ],
               flexibleSpace: FlexibleSpaceBar(
                 collapseMode: CollapseMode.parallax,
@@ -113,17 +120,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   children: [
                     FoodImage(image: recipe.imageUrl, radius: 0),
                     // 상단 시스템 아이콘, 하단 본문 경계 가독성용 그라데이션.
-                    const DecoratedBox(
+                    DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          stops: [0, 0.25, 0.8, 1],
+                          stops: const [0, 0.25, 0.8, 1],
                           colors: [
-                            Color(0x66201005),
+                            color.scrimSoft,
                             Colors.transparent,
                             Colors.transparent,
-                            Color(0x33201005),
+                            color.scrimSoft.withValues(alpha: 0.2),
                           ],
                         ),
                       ),
@@ -134,7 +141,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                padding: EdgeInsets.fromLTRB(
+                  space.screenPaddingX,
+                  space.screenPaddingX,
+                  space.screenPaddingX,
+                  space.majorGap,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -142,20 +154,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Text(
-                            recipe.title,
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
+                          child: Text(recipe.title, style: type.headline),
                         ),
                         if (recipe.badge != null) ImageLabelChip(recipe.badge!),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: space.tightGap),
                     Text(
                       recipe.description,
-                      style: const TextStyle(color: AppColors.slate),
+                      style: type.body.copyWith(color: color.slate),
                     ),
-                    const SizedBox(height: 18),
+                    SizedBox(height: space.sectionGap),
                     // 핵심 스탯 타일 3개
                     Row(
                       children: [
@@ -164,13 +173,13 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                           label: '타이머 합계',
                           value: '${recipe.timerMinutes}분',
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: space.itemGap),
                         _StatTile(
                           icon: Icons.format_list_numbered_rounded,
                           label: '조리 단계',
                           value: '${recipe.steps.length}단계',
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: space.itemGap),
                         _StatTile(
                           icon: Icons.people_alt_rounded,
                           label: '기준',
@@ -188,18 +197,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       )
                     else
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 6,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: space.cardPadding,
+                          vertical: space.tightGap,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.card,
-                          borderRadius: BorderRadius.circular(AppShape.inner),
-                          boxShadow: const [
+                          color: color.card,
+                          borderRadius: BorderRadius.circular(space.radiusLg),
+                          boxShadow: [
                             BoxShadow(
-                              color: AppColors.shadow,
-                              blurRadius: 14,
-                              offset: Offset(0, 4),
+                              color: color.shadow,
+                              blurRadius: space.softShadowBlur,
+                              offset: Offset(0, space.softShadowLift),
                             ),
                           ],
                         ),
@@ -233,20 +242,20 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: CircleAvatar(
-                            backgroundColor: AppColors.accentSoft,
-                            foregroundColor: AppColors.accent,
+                            backgroundColor: color.accentSoft,
+                            foregroundColor: color.accent,
                             child: Text(
                               '${i + 1}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: type.body.copyWith(fontWeight: type.bold),
                             ),
                           ),
                           title: Text(
                             recipe.steps[i].title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                            style: type.body.copyWith(
+                              fontWeight: type.semiBold,
+                            ),
                           ),
                           subtitle: Text(
                             recipe.steps[i].timerSeconds == null
@@ -261,7 +270,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           ],
         ),
         bottomNavigationBar: SafeArea(
-          minimum: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          minimum: EdgeInsets.fromLTRB(
+            space.screenPaddingX,
+            space.snugGap,
+            space.screenPaddingX,
+            space.screenPaddingX,
+          ),
           child: PressableScale(
             child: FilledButton(
               onPressed: canCook
@@ -299,18 +313,20 @@ class _CircleAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final space = context.space;
     return Center(
       child: PressableScale(
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            width: 38,
-            height: 38,
-            decoration: const BoxDecoration(
-              color: Color(0xD9FFFFFF),
+            width: space.overlayButtonSize,
+            height: space.overlayButtonSize,
+            decoration: BoxDecoration(
+              color: color.overlaySurface,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: AppColors.ink, size: 22),
+            child: Icon(icon, color: color.ink, size: space.iconLg),
           ),
         ),
       ),
@@ -331,30 +347,29 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: EdgeInsets.symmetric(vertical: space.blockGap),
         decoration: BoxDecoration(
-          color: AppColors.wash,
-          borderRadius: BorderRadius.circular(AppShape.inner),
+          color: color.wash,
+          borderRadius: BorderRadius.circular(space.radiusLg),
         ),
         child: Column(
           children: [
-            Icon(icon, color: AppColors.accent, size: 22),
-            const SizedBox(height: 6),
+            Icon(icon, color: color.accent, size: space.iconLg),
+            SizedBox(height: space.tightGap),
             Text(
               value,
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontWeight: FontWeight.w700,
-                fontSize: 15,
+              style: type.label.copyWith(
+                color: color.ink,
+                fontWeight: type.bold,
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(color: AppColors.muted, fontSize: 11.5),
-            ),
+            SizedBox(height: space.hairGap),
+            Text(label, style: type.small.copyWith(color: color.muted)),
           ],
         ),
       ),
@@ -370,10 +385,13 @@ class _IngredientRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: EdgeInsets.symmetric(vertical: space.blockGap),
           child: Row(
             children: [
               Expanded(
@@ -382,30 +400,19 @@ class _IngredientRow extends StatelessWidget {
                   children: [
                     Text(
                       item.name,
-                      style: const TextStyle(
-                        color: AppColors.ink,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
+                      style: type.label.copyWith(color: color.ink),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: space.hairGap),
                     Text(
                       item.requirementLabel,
-                      style: const TextStyle(
-                        color: AppColors.accent,
-                        fontSize: 12.5,
-                      ),
+                      style: type.caption.copyWith(color: color.accent),
                     ),
                   ],
                 ),
               ),
               Text(
                 item.amountLabel,
-                style: const TextStyle(
-                  color: AppColors.slate,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                ),
+                style: type.label.copyWith(color: color.slate),
               ),
             ],
           ),
@@ -425,8 +432,6 @@ class CookSetupScreen extends StatefulWidget {
     this.sessionAlarm,
     this.sessionSpeechInput,
     this.sessionSpeechOutputFactory,
-    this.pendingReviewDraftStore,
-    this.pendingReviewScreenBuilder,
     this.cookSessionScreenBuilder,
   });
 
@@ -439,8 +444,6 @@ class CookSetupScreen extends StatefulWidget {
   /// Creates a fresh output owner for each cooking session. A completed
   /// session disposes its port, so the instance must not be reused.
   final SpeechOutputPort Function()? sessionSpeechOutputFactory;
-  final PendingReviewDraftGateway? pendingReviewDraftStore;
-  final Widget Function(PendingReviewDraft draft)? pendingReviewScreenBuilder;
   final WidgetBuilder? cookSessionScreenBuilder;
 
   @override
@@ -451,7 +454,6 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
   late int servings;
   late final RecipeRepository _recipeRepository;
   late final RecommendationDataSource? _recommendationDataSource;
-  late final PendingReviewDraftGateway _pendingReviewDraftStore;
   late List<_IngredientSetupDraft> _ingredients;
   late List<CookStep> _steps;
   List<PersonalRecipeVersionSummary> _personalVersions = const [];
@@ -473,8 +475,6 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
     super.initState();
     _recipeRepository = widget.recipeRepository ?? RecipeRepository();
     _recommendationDataSource = widget.recommendationDataSource;
-    _pendingReviewDraftStore =
-        widget.pendingReviewDraftStore ?? PendingReviewDraftStore();
     servings = widget.recipe.baseServings.round().clamp(1, 99);
     _applySelectedRecipe();
     unawaited(_loadPersonalVersions());
@@ -487,43 +487,10 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
     if (_loadingPersonalVersion || _startingCooking) {
       return;
     }
+    // 작성 중인 후기가 있어도 새 조리를 막지 않는다. 후기를 쓸지 말지는
+    // 사용자가 정할 일이고, 남은 초안은 홈의 "후기 작성 이어가기" 카드가 알린다.
     setState(() => _startingCooking = true);
     try {
-      final PendingReviewDraft? pendingReviewDraft;
-      try {
-        pendingReviewDraft = await _pendingReviewDraftStore.load();
-      } on Object {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              const SnackBar(
-                content: Text('작성 중인 후기를 확인하지 못해 새 조리를 시작하지 않았어요. 다시 시도해 주세요.'),
-              ),
-            );
-        }
-        return;
-      }
-      if (!mounted) {
-        return;
-      }
-      if (pendingReviewDraft case final PendingReviewDraft draft) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('작성 중인 후기를 먼저 이어갈게요.')));
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) =>
-                widget.pendingReviewScreenBuilder?.call(draft) ??
-                ReviewScreen(
-                  initialDraft: draft,
-                  pendingReviewDraftStore: _pendingReviewDraftStore,
-                ),
-          ),
-        );
-        return;
-      }
-
       final snapshot = _buildSnapshot();
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -745,6 +712,8 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final type = context.type;
+    final space = context.space;
     final setupLocked = _loadingPersonalVersion || _startingCooking;
     final visibleRecommendations = _recommendations
         .where(
@@ -766,7 +735,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
       ],
       children: [
         Wrap(
-          spacing: 8,
+          spacing: space.snugGap,
           children: [
             ChoiceChip(
               label: const Text('기본'),
@@ -785,7 +754,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
               ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: space.blockGap),
         InfoStrip(
           icon: Icons.auto_awesome_rounded,
           title: _loadingPersonalVersion
@@ -849,9 +818,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                 child: Text(
                   '$servings인분',
                   textAlign: TextAlign.center,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                  style: type.title.copyWith(fontWeight: type.black),
                 ),
               ),
             ),
@@ -884,7 +851,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                     ),
                   ),
                   if (ingredient.isSubstituted) ...[
-                    const SizedBox(width: 6),
+                    SizedBox(width: space.tightGap),
                     const Pill('대체'),
                   ],
                 ],
@@ -908,8 +875,8 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
         ),
         const SectionTitle('조리 중 음성 사용'),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: space.snugGap,
+          runSpacing: space.snugGap,
           children: [
             ChoiceChip(
               key: const Key('cooking-voice-mode-manual'),
@@ -929,7 +896,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: space.blockGap),
         InfoStrip(
           key: const Key('cooking-voice-mode-description'),
           icon: _handsFreeVoiceEnabled
@@ -950,7 +917,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
             _loadingPersonalVersion
                 ? '나 맞춤 버전 불러오는 중'
                 : _startingCooking
-                ? '작성 중 후기 확인 중'
+                ? '조리 화면 여는 중'
                 : '이 설정으로 조리 시작',
           ),
         ),
@@ -976,52 +943,57 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
     );
     final percent = recommendation.changePercent.abs();
     final direction = recommendation.changePercent < 0 ? '감소' : '증가';
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+        padding: EdgeInsets.fromLTRB(
+          space.sectionGap,
+          space.cardPadding,
+          space.sectionGap,
+          space.blockGap,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.auto_awesome_rounded, color: AppColors.accent),
-                const SizedBox(width: 8),
+                Icon(Icons.auto_awesome_rounded, color: color.accent),
+                SizedBox(width: space.snugGap),
                 Expanded(
                   child: Text(
                     '${recommendation.ingredientName} $percent% $direction',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: type.subtitle.copyWith(fontWeight: type.black),
                   ),
                 ),
                 Text(
                   '$originalLabel → $suggestedLabel',
-                  style: const TextStyle(
-                    color: AppColors.slate,
-                    fontWeight: FontWeight.w700,
+                  style: type.body.copyWith(
+                    color: color.slate,
+                    fontWeight: type.bold,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: space.snugGap),
             Text(
               recommendation.reason,
-              style: const TextStyle(color: AppColors.slate, height: 1.45),
+              style: type.body.copyWith(color: color.slate),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: space.tightGap),
             Text(
               '근거 ${recommendation.evidence.length}회',
-              style: const TextStyle(
-                color: AppColors.muted,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
+              style: type.small.copyWith(
+                color: color.muted,
+                fontWeight: type.bold,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: space.itemGap),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: space.snugGap,
+              runSpacing: space.snugGap,
               children: [
                 TextButton(
                   onPressed: saving
@@ -1154,24 +1126,30 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final color = context.color;
+            final type = context.type;
+            final space = context.space;
             return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+              padding: EdgeInsets.fromLTRB(
+                space.screenPaddingX,
+                space.hairGap,
+                space.screenPaddingX,
+                space.majorGap,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     '${recommendation.ingredientName} 추천 수정',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: type.title.copyWith(fontWeight: type.black),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: space.snugGap),
                   Text(
                     recommendation.reason,
-                    style: const TextStyle(color: AppColors.slate, height: 1.4),
+                    style: type.body.copyWith(color: color.slate),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: space.screenPaddingX),
                   Row(
                     children: [
                       IconButton.filledTonal(
@@ -1190,10 +1168,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                         child: Text(
                           _formatAmount(amount, recommendation.unit),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 20,
-                          ),
+                          style: type.title.copyWith(fontWeight: type.black),
                         ),
                       ),
                       IconButton.filled(
@@ -1208,7 +1183,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: space.screenPaddingX),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
@@ -1259,13 +1234,16 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final color = context.color;
+            final type = context.type;
+            final space = context.space;
             final amountLabel = _formatAmount(amount, ingredient.unit);
             return Padding(
               padding: EdgeInsets.fromLTRB(
-                20,
-                4,
-                20,
-                24 + MediaQuery.viewInsetsOf(context).bottom,
+                space.screenPaddingX,
+                space.hairGap,
+                space.screenPaddingX,
+                space.majorGap + MediaQuery.viewInsetsOf(context).bottom,
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -1274,14 +1252,14 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                   children: [
                     Text(
                       '${ingredient.originalName} · ${ingredient.amountLabel}',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.ink,
-                        fontWeight: FontWeight.w900,
+                      style: type.title.copyWith(
+                        color: color.ink,
+                        fontWeight: type.black,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: space.blockGap),
                     Wrap(
-                      spacing: 8,
+                      spacing: space.snugGap,
                       children: [
                         ChoiceChip(
                           label: const Text('양 조절'),
@@ -1307,7 +1285,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                       ],
                     ),
                     if (ingredient.isSubstituted) ...[
-                      const SizedBox(height: 12),
+                      SizedBox(height: space.blockGap),
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -1327,7 +1305,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 18),
+                    SizedBox(height: space.sectionGap),
                     if (mode == _IngredientEditMode.substitute) ...[
                       TextFormField(
                         initialValue: replacementName,
@@ -1341,7 +1319,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                           validationMessage = null;
                         }),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: space.blockGap),
                       const InfoStrip(
                         icon: Icons.lightbulb_outline_rounded,
                         title: '추천 대체재는 준비 중이에요',
@@ -1378,10 +1356,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                             child: Text(
                               amountLabel,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 18,
-                              ),
+                              style: type.lead.copyWith(fontWeight: type.black),
                             ),
                           ),
                           IconButton.filled(
@@ -1398,7 +1373,7 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: space.blockGap),
                       const InfoStrip(
                         icon: Icons.calculate_rounded,
                         title: '이 재료의 양만 조절해요',
@@ -1406,15 +1381,15 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
                       ),
                     ],
                     if (validationMessage != null) ...[
-                      const SizedBox(height: 8),
+                      SizedBox(height: space.snugGap),
                       Text(
                         validationMessage!,
-                        style: TextStyle(
+                        style: type.body.copyWith(
                           color: Theme.of(context).colorScheme.error,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 18),
+                    SizedBox(height: space.sectionGap),
                     PressableScale(
                       child: FilledButton(
                         onPressed: () {
@@ -2876,17 +2851,6 @@ class _CookSessionScreenState extends State<CookSessionScreen>
     };
   }
 
-  static String _formatRemaining(Duration remaining) {
-    final totalSeconds = (remaining.inMilliseconds / 1000).ceil().clamp(
-      0,
-      5999,
-    );
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:'
-        '${seconds.toString().padLeft(2, '0')}';
-  }
-
   String get _speechTitle => switch (_speechPhase) {
     _CookSpeechPhase.idle => '음성으로 조리하기',
     _CookSpeechPhase.starting => '마이크 준비 중',
@@ -2919,308 +2883,51 @@ class _CookSessionScreenState extends State<CookSessionScreen>
   @override
   Widget build(BuildContext context) {
     // 코치가 켜져 있어도 조리 UI(단계·타이머)를 그대로 보여준다 — 코치 상태는
-    // 하단 코치 버튼 라벨과 coach-status 문구가 나타낸다. 타이머 tool call이
+    // 코치 버튼 라벨과 coach-status 문구가 나타낸다. 타이머 tool call이
     // 실제로 화면 타이머를 움직이는 것을 눈으로 확인할 수 있어야 한다.
     final current = widget.recipe.steps[step - 1];
-    final isLast = step == widget.recipe.steps.length;
-    final hasTimer = current.timerDuration > Duration.zero;
-
-    final screen = Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          onPressed: _finishing ? null : _closeCookingSession,
-          icon: const Icon(Icons.close_rounded),
-        ),
-        title: Text(
-          '${widget.recipe.title} · ${widget.servings}인분',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          children: [
-            Row(
-              children: [
-                Text(
-                  '$step / ${widget.recipe.steps.length} 단계',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    '자동 저장됨',
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: AppColors.slate),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(value: step / widget.recipe.steps.length),
-            const SizedBox(height: 18),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                FoodImage(
-                  image: current.imageUrl.isNotEmpty
-                      ? current.imageUrl
-                      : widget.recipe.imageUrl,
-                  width: double.infinity,
-                  height: 210,
-                  radius: AppShape.container,
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  current.title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: AppColors.ink,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  current.description,
-                  style: const TextStyle(color: AppColors.slate),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.ink,
-                borderRadius: BorderRadius.circular(AppShape.container),
-                boxShadow: const [
-                  BoxShadow(
-                    color: AppColors.shadow,
-                    blurRadius: 22,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    '남은 시간',
-                    style: TextStyle(color: Color(0xB3FFFFFF)),
-                  ),
-                  const SizedBox(height: 8),
-                  // 시계만 실제로 동작하는 부분: 타이머 상태에 맞춰 매초 갱신된다.
-                  AnimatedBuilder(
-                    animation: _timer,
-                    builder: (context, _) => Text(
-                      _formatRemaining(_timer.remaining),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 44,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  AnimatedBuilder(
-                    animation: _timer,
-                    builder: (context, _) => PressableScale(
-                      child: FilledButton(
-                        onPressed:
-                            !_completionLocked &&
-                                hasTimer &&
-                                _timer.status != TimerStatus.elapsed
-                            ? _toggleTimer
-                            : null,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.accent,
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                        child: Text(_timerLabel(current.minutes)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  // 시계 보조 컨트롤: 1분 추가 / 리셋. 다크 카드에 맞춘 아웃라인 버튼.
-                  AnimatedBuilder(
-                    animation: _timer,
-                    builder: (context, _) {
-                      final style = OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0x33FFFFFF)),
-                        minimumSize: const Size.fromHeight(44),
-                      );
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: !_completionLocked && hasTimer
-                                  ? _addMinute
-                                  : null,
-                              icon: const Icon(Icons.add_rounded, size: 18),
-                              label: const Text('1분 추가'),
-                              style: style,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed:
-                                  !_completionLocked &&
-                                      hasTimer &&
-                                      _timer.status != TimerStatus.idle
-                                  ? _resetTimerForStep
-                                  : null,
-                              icon: const Icon(Icons.refresh_rounded, size: 18),
-                              label: const Text('리셋'),
-                              style: style,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            InfoStrip(
-              key: const Key('voice-input-status'),
-              icon: _speechIcon,
-              title: _speechTitle,
-              body: _speechBody,
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    key: const Key('voice-input-toggle'),
-                    onPressed:
-                        _completionLocked ||
-                            _speechPhase == _CookSpeechPhase.stopping
-                        ? null
-                        : _toggleSpeechInput,
-                    icon: Icon(
-                      _speechPhase == _CookSpeechPhase.starting ||
-                              _speechPhase == _CookSpeechPhase.listening
-                          ? Icons.stop_rounded
-                          : Icons.mic_rounded,
-                      size: 20,
-                    ),
-                    label: Text(_speechButtonLabel),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    key: const Key('help-request'),
-                    onPressed: _completionLocked || _helpRequestInFlight
-                        ? null
-                        : _openHelpSheet,
-                    icon: const Icon(Icons.keyboard_rounded, size: 20),
-                    label: const Text('직접 입력'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.tonalIcon(
-                    key: const Key('coach-toggle'),
-                    onPressed:
-                        _completionLocked ||
-                            _coachPhase == CookingCoachPhase.connecting ||
-                            _coachPhase == CookingCoachPhase.stopping
-                        ? null
-                        : _toggleCoach,
-                    icon: Icon(
-                      _coach.isActive
-                          ? Icons.stop_rounded
-                          : Icons.headset_mic_rounded,
-                      size: 20,
-                    ),
-                    label: Text(switch (_coachPhase) {
-                      CookingCoachPhase.idle => 'AI 코치',
-                      CookingCoachPhase.connecting => '연결 중…',
-                      CookingCoachPhase.live => '코치 끄기',
-                      CookingCoachPhase.stopping => '끄는 중…',
-                    }),
-                  ),
-                ),
-              ],
-            ),
-            if (_coachMessage case final coachMessage?) ...[
-              const SizedBox(height: 8),
-              Text(
-                coachMessage,
-                key: const Key('coach-status'),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              'AI 질문은 답변 생성을 위해 Google Gemini로 전송될 수 있어요. '
-              '개인정보·건강정보는 말하거나 입력하지 마세요.',
-              key: const Key('ai-data-disclosure'),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            if (_helpLoading) ...[
-              const SizedBox(height: 12),
-              const InfoStrip(
-                icon: Icons.hourglass_top_rounded,
-                title: '답변 준비 중',
-                body: '현재 단계에 맞는 답을 확인하고 있어요.',
-              ),
-            ] else if (_helpAnswer case final String answer) ...[
-              const SizedBox(height: 12),
-              InfoStrip(
-                icon: Icons.support_agent_rounded,
-                title: '도움 답변',
-                body: answer,
-              ),
-            ],
-            if (_finishError case final String error) ...[
-              const SizedBox(height: 12),
-              InfoStrip(
-                key: const Key('cooking-completion-error'),
-                icon: Icons.error_outline_rounded,
-                title: '완료 정보를 저장하지 못했어요',
-                body: error,
-              ),
-            ],
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: PressableScale(
-          child: FilledButton(
-            onPressed: _finishing
-                ? null
-                : () {
-                    if (isLast) {
-                      unawaited(_finishCooking());
-                    } else {
-                      _moveCookingStep(1, fromVoice: false);
-                    }
-                  },
-            child: Text(
-              isLast && _finishing
-                  ? '완료 저장 중'
-                  : isLast
-                  ? '조리 완료'
-                  : '다음 단계',
-            ),
-          ),
-        ),
-      ),
+    final vm = CookSessionViewModel(
+      recipeTitle: widget.recipe.title,
+      servings: widget.servings,
+      stepNumber: step,
+      stepCount: widget.recipe.steps.length,
+      stepTitle: current.title,
+      stepDescription: current.description,
+      stepImageUrl: current.imageUrl.isNotEmpty
+          ? current.imageUrl
+          : widget.recipe.imageUrl,
+      timer: _timer,
+      hasTimer: current.timerDuration > Duration.zero,
+      timerActionLabel: () => _timerLabel(current.minutes),
+      speechPhase: _speechPhase,
+      speechIcon: _speechIcon,
+      speechTitle: _speechTitle,
+      speechBody: _speechBody,
+      speechButtonLabel: _speechButtonLabel,
+      coachPhase: _coachPhase,
+      coachActive: _coach.isActive,
+      coachMessage: _coachMessage,
+      helpLoading: _helpLoading,
+      helpAnswer: _helpAnswer,
+      helpRequestInFlight: _helpRequestInFlight,
+      finishing: _finishing,
+      locked: _completionLocked,
+      finishError: _finishError,
+      onClose: _closeCookingSession,
+      onToggleTimer: _toggleTimer,
+      onAddMinute: _addMinute,
+      onResetTimer: _resetTimerForStep,
+      onToggleSpeech: _toggleSpeechInput,
+      onAskHelp: _openHelpSheet,
+      onToggleCoach: _toggleCoach,
+      onAdvance: () {
+        if (step == widget.recipe.steps.length) {
+          unawaited(_finishCooking());
+        } else {
+          _moveCookingStep(1, fromVoice: false);
+        }
+      },
+      onPrevStep: () => _moveCookingStep(-1, fromVoice: false),
     );
     return PopScope(
       key: const Key('cooking-completion-pop-scope'),
@@ -3230,7 +2937,11 @@ class _CookSessionScreenState extends State<CookSessionScreen>
           _closeCookingSession();
         }
       },
-      child: screen,
+      // 배치만 갈아끼운다. 상태·타이머·음성은 이 클래스가 그대로 갖고 있다.
+      child: ValueListenableBuilder<CookLayout>(
+        valueListenable: activeCookLayout,
+        builder: (context, layout, _) => layout.build(context, vm),
+      ),
     );
   }
 
@@ -3586,7 +3297,7 @@ class _ReviewScreenState extends State<ReviewScreen>
               title: const Text('갤러리에서 선택'),
               onTap: () => Navigator.of(context).pop(ReviewPhotoSource.gallery),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: context.space.snugGap),
           ],
         ),
       ),
@@ -3988,6 +3699,9 @@ class _ReviewScreenState extends State<ReviewScreen>
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     final changes = _changeLabels;
     final personalVersionPreflightBlock = _personalVersionPreflightBlock;
     final requiresReviewOnlyRecovery = _requiresReviewOnlyRecovery;
@@ -4000,17 +3714,17 @@ class _ReviewScreenState extends State<ReviewScreen>
       children: [
         Text(
           '조리 완료! 어땠나요?',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: AppColors.ink,
-            fontWeight: FontWeight.w900,
+          style: type.titleLarge.copyWith(
+            color: color.ink,
+            fontWeight: type.black,
           ),
         ),
-        const SizedBox(height: 18),
+        SizedBox(height: space.sectionGap),
         Row(
           children: [
             Expanded(
               child: Wrap(
-                spacing: 2,
+                spacing: space.hairGap,
                 children: [
                   for (var i = 1; i <= 5; i++)
                     PressableScale(
@@ -4030,10 +3744,8 @@ class _ReviewScreenState extends State<ReviewScreen>
                           child: Icon(
                             Icons.star_rounded,
                             key: ValueKey(i <= rating),
-                            color: i <= rating
-                                ? AppColors.accent
-                                : AppColors.line,
-                            size: 32,
+                            color: i <= rating ? color.accent : color.line,
+                            size: space.iconXl,
                           ),
                         ),
                       ),
@@ -4041,10 +3753,10 @@ class _ReviewScreenState extends State<ReviewScreen>
                 ],
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: space.itemGap),
             Text(
               '$rating / 5',
-              style: const TextStyle(fontWeight: FontWeight.w900),
+              style: type.body.copyWith(fontWeight: type.black),
             ),
           ],
         ),
@@ -4112,10 +3824,10 @@ class _ReviewScreenState extends State<ReviewScreen>
             title: '일부 사진을 제외했어요',
             body: notice,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: space.snugGap),
         ],
         SizedBox(
-          height: 88,
+          height: space.photoTileSize,
           child: ListView(
             key: const Key('review-photo-strip'),
             scrollDirection: Axis.horizontal,
@@ -4134,7 +3846,7 @@ class _ReviewScreenState extends State<ReviewScreen>
                   onRemove: () => _removePhoto(relativePath),
                   onRetry: () => setState(() => _enqueueUpload(relativePath)),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: space.snugGap),
               ],
               if (_photoPaths.length < PendingReviewDraft.maximumPhotoCount)
                 _AddPhotoTile(
@@ -4146,13 +3858,13 @@ class _ReviewScreenState extends State<ReviewScreen>
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: space.cardPadding),
         SwitchListTile.adaptive(
           key: const Key('personal-version-opt-in'),
           contentPadding: EdgeInsets.zero,
-          title: const Text(
+          title: Text(
             '이번 변경을 개인 버전으로 저장',
-            style: TextStyle(fontWeight: FontWeight.w800),
+            style: type.body.copyWith(fontWeight: type.extraBold),
           ),
           subtitle: const Text('승인한 경우에만 다음 조리에 사용할 개인 레시피를 만들어요.'),
           value: _approvedPersonalVersionCreation,
@@ -4162,7 +3874,7 @@ class _ReviewScreenState extends State<ReviewScreen>
               : _setPersonalVersionApproval,
         ),
         if (personalVersionPreflightBlock != null) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: space.snugGap),
           InfoStrip(
             key: const Key('review-personal-version-preflight-block'),
             icon: Icons.warning_amber_rounded,
@@ -4179,13 +3891,13 @@ class _ReviewScreenState extends State<ReviewScreen>
         if (changes.isNotEmpty) ...[
           const SectionTitle('자동으로 기록한 변경'),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: space.snugGap,
+            runSpacing: space.snugGap,
             children: [for (final change in changes) Pill(change)],
           ),
         ],
         if (_draftSaveError case final String error) ...[
-          const SizedBox(height: 16),
+          SizedBox(height: space.cardPadding),
           InfoStrip(
             key: const Key('review-draft-save-error'),
             icon: Icons.save_outlined,
@@ -4194,7 +3906,7 @@ class _ReviewScreenState extends State<ReviewScreen>
           ),
         ],
         if (_saveError case final String error) ...[
-          const SizedBox(height: 16),
+          SizedBox(height: space.cardPadding),
           InfoStrip(
             icon: Icons.error_outline_rounded,
             title: '저장하지 못했어요',
@@ -4205,7 +3917,7 @@ class _ReviewScreenState extends State<ReviewScreen>
             _submittedReview != null &&
             _saved == null &&
             !requiresReviewOnlyRecovery) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: space.snugGap),
           const InfoStrip(
             key: Key('review-approval-retry-state'),
             icon: Icons.restart_alt_rounded,
@@ -4272,36 +3984,39 @@ final class _ReviewPhotoThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return SizedBox(
-      width: 88,
-      height: 88,
+      width: space.photoTileSize,
+      height: space.photoTileSize,
       child: Stack(
         children: [
           Positioned.fill(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(space.radiusLg),
               child: absolutePath == null
-                  ? _placeholder()
+                  ? _placeholder(context)
                   : Image.file(
                       File(absolutePath!),
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _placeholder(),
+                      errorBuilder: (_, _, _) => _placeholder(context),
                     ),
             ),
           ),
           if (uploading)
             Positioned.fill(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: const ColoredBox(
-                  color: Colors.black26,
+                borderRadius: BorderRadius.circular(space.radiusLg),
+                child: ColoredBox(
+                  color: color.scrimSoft,
                   child: Center(
                     child: SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: space.iconMd,
+                      height: space.iconMd,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: color.onInverse,
                       ),
                     ),
                   ),
@@ -4311,23 +4026,23 @@ final class _ReviewPhotoThumbnail extends StatelessWidget {
           else if (failed)
             Positioned.fill(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(space.radiusLg),
                 child: Material(
-                  color: Colors.black38,
+                  color: color.scrimStrong,
                   child: InkWell(
                     key: retryKey,
                     onTap: locked ? null : onRetry,
-                    child: const Column(
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.refresh_rounded,
-                          color: Colors.white,
-                          size: 22,
+                          color: color.onInverse,
+                          size: space.iconLg,
                         ),
                         Text(
                           '재시도',
-                          style: TextStyle(color: Colors.white, fontSize: 11),
+                          style: type.tiny.copyWith(color: color.onInverse),
                         ),
                       ],
                     ),
@@ -4337,22 +4052,22 @@ final class _ReviewPhotoThumbnail extends StatelessWidget {
             ),
           if (!locked)
             Positioned(
-              top: 4,
-              right: 4,
+              top: space.hairGap,
+              right: space.hairGap,
               child: InkWell(
                 key: removeKey,
                 onTap: onRemove,
                 customBorder: const CircleBorder(),
                 child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    color: Colors.black54,
+                  padding: EdgeInsets.all(space.hairGap),
+                  decoration: BoxDecoration(
+                    color: color.scrimStrong,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.close_rounded,
-                    size: 14,
-                    color: Colors.white,
+                    size: space.iconSm,
+                    color: color.onInverse,
                   ),
                 ),
               ),
@@ -4362,9 +4077,9 @@ final class _ReviewPhotoThumbnail extends StatelessWidget {
     );
   }
 
-  Widget _placeholder() => const ColoredBox(
-    color: AppColors.line,
-    child: Icon(Icons.image_outlined, color: AppColors.muted),
+  Widget _placeholder(BuildContext context) => ColoredBox(
+    color: context.color.line,
+    child: Icon(Icons.image_outlined, color: context.color.muted),
   );
 }
 
@@ -4382,29 +4097,31 @@ final class _AddPhotoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return SizedBox(
-      width: 88,
-      height: 88,
+      width: space.photoTileSize,
+      height: space.photoTileSize,
       child: Material(
-        color: AppColors.wash,
-        borderRadius: BorderRadius.circular(14),
+        color: color.wash,
+        borderRadius: BorderRadius.circular(space.radiusLg),
         child: InkWell(
           onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(space.radiusLg),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 Icons.add_a_photo_rounded,
-                color: enabled ? AppColors.accent : AppColors.muted,
+                color: enabled ? color.accent : color.muted,
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: space.hairGap),
               Text(
                 '$count/${PendingReviewDraft.maximumPhotoCount}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.slate,
+                style: type.small.copyWith(
+                  fontWeight: type.bold,
+                  color: color.slate,
                 ),
               ),
             ],

@@ -1,47 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// "따뜻한 키친" 팔레트.
-/// 순검정·순백·차가운 회색을 쓰지 않고, 크림 바탕 위에 에스프레소 브라운과
-/// 파프리카 포인트 하나로 통일한다. 회색 계열은 전부 웜 톤으로 맞춘다.
-class AppColors {
-  const AppColors._();
-
-  /// 본문·제목 텍스트. 순검정 대신 깊은 에스프레소 브라운.
-  static const ink = Color(0xFF33261A);
-
-  /// 보조 텍스트.
-  static const slate = Color(0xFF7A6A58);
-
-  /// 힌트·비활성 텍스트.
-  static const muted = Color(0xFFA8988A);
-
-  /// 앱 배경. 크림 아이보리.
-  static const surface = Color(0xFFFAF5EE);
-
-  /// 카드 표면.
-  static const card = Color(0xFFFFFFFF);
-
-  /// 헤어라인·테두리.
-  static const line = Color(0xFFEFE5D8);
-
-  /// 브랜드 포인트. 파프리카(테라코타 오렌지).
-  static const accent = Color(0xFFD4572E);
-
-  /// 포인트의 연한 배경 버전(선택 상태, 강조 스트립).
-  static const accentSoft = Color(0xFFF9E8DD);
-
-  /// 정보 스트립 등 은은한 웜 배경.
-  static const wash = Color(0xFFF5EDE2);
-
-  /// 카카오 로그인 버튼 전용 브랜드 컬러.
-  static const kakao = Color(0xFFFEE500);
-
-  /// 완료·성공. 허브 그린.
-  static const success = Color(0xFF5C8A4E);
-
-  /// 그림자. 브라운 틴트를 섞어 배경과 어우러지게.
-  static const shadow = Color(0x1F8A6A45);
-}
+import '../design/design_catalog.dart';
+import '../design/design_spec.dart';
+import '../design/design_tokens.dart';
 
 /// Shared easing curves and durations, tuned per the "ease-out for entering,
 /// ease-in-out for on-screen movement" rule of thumb. Keep every ad-hoc
@@ -59,14 +20,6 @@ class AppMotion {
   static const short = Duration(milliseconds: 180);
   static const medium = Duration(milliseconds: 260);
   static const long = Duration(milliseconds: 400);
-}
-
-/// 형태 토큰. 컨테이너는 20, 내부 요소는 14로 이원화해 위계를 만든다.
-class AppShape {
-  const AppShape._();
-
-  static const container = 20.0;
-  static const inner = 14.0;
 }
 
 class _CookPilotPageTransitionsBuilder extends PageTransitionsBuilder {
@@ -94,188 +47,164 @@ class _CookPilotPageTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
-ThemeData buildCookPilotTheme() {
-  final colorScheme = ColorScheme.fromSeed(
-    seedColor: AppColors.accent,
-    primary: AppColors.accent,
-    secondary: AppColors.ink,
-    surface: AppColors.card,
-  );
+TextTheme _buildTextTheme(DesignSpec spec) {
+  final t = spec.type;
+  return TextTheme(
+    headlineLarge: t.headlineLarge,
+    headlineMedium: t.headline,
+    headlineSmall: t.titleLarge,
+    titleLarge: t.title,
+    titleMedium: t.subtitle,
+    titleSmall: t.label,
+    bodyLarge: t.bodyLarge,
+    bodyMedium: t.body,
+    bodySmall: t.caption,
+    labelLarge: t.label,
+    labelMedium: t.small,
+    labelSmall: t.tiny,
+  ).apply(bodyColor: spec.palette.ink, displayColor: spec.palette.ink);
+}
 
-  const displayStyle = TextStyle(
-    fontWeight: FontWeight.w800,
-    letterSpacing: -0.6,
-    height: 1.15,
-    color: AppColors.ink,
+/// [spec]이 정한 토큰만으로 앱 테마를 조립한다.
+///
+/// 여기에는 색·크기 리터럴이 하나도 없어야 한다. 새 값이 필요하면 테마가
+/// 아니라 [DesignSpec]에 토큰을 추가할 것.
+ThemeData buildCookPilotTheme([DesignSpec spec = defaultDesignSpec]) {
+  final c = spec.palette;
+  final t = spec.type;
+  final d = spec.density;
+
+  final colorScheme = ColorScheme.fromSeed(
+    seedColor: c.accent,
+    brightness: c.brightness,
+    primary: c.accent,
+    onPrimary: c.onAccent,
+    secondary: c.ink,
+    surface: c.card,
+    onSurface: c.ink,
   );
 
   return ThemeData(
     colorScheme: colorScheme,
-    scaffoldBackgroundColor: AppColors.surface,
+    scaffoldBackgroundColor: c.surface,
     useMaterial3: true,
-    fontFamily: 'Pretendard',
-    textTheme: TextTheme(
-      headlineLarge: displayStyle.copyWith(fontSize: 32),
-      headlineMedium: displayStyle.copyWith(fontSize: 28),
-      headlineSmall: displayStyle.copyWith(fontSize: 23),
-      titleLarge: displayStyle.copyWith(fontSize: 20, letterSpacing: -0.4),
-      titleMedium: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.2,
-        color: AppColors.ink,
-      ),
-      bodyLarge: const TextStyle(
-        fontSize: 16,
-        height: 1.5,
-        color: AppColors.ink,
-      ),
-      bodyMedium: const TextStyle(
-        fontSize: 14,
-        height: 1.5,
-        color: AppColors.ink,
-      ),
-      labelLarge: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        letterSpacing: -0.1,
-      ),
-    ),
+    fontFamily: t.fontFamily,
+    extensions: [CookPilotTokens(spec)],
+    textTheme: _buildTextTheme(spec),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
         TargetPlatform.android: _CookPilotPageTransitionsBuilder(),
         TargetPlatform.iOS: _CookPilotPageTransitionsBuilder(),
       },
     ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       centerTitle: false,
-      backgroundColor: AppColors.surface,
-      foregroundColor: AppColors.ink,
+      backgroundColor: c.surface,
+      foregroundColor: c.ink,
       elevation: 0,
-      titleTextStyle: TextStyle(
-        fontFamily: 'Pretendard',
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.3,
-        color: AppColors.ink,
-      ),
+      titleTextStyle: t.lead.copyWith(color: c.ink),
     ),
     cardTheme: CardThemeData(
-      color: AppColors.card,
+      color: c.card,
       elevation: 3,
-      shadowColor: AppColors.shadow,
+      shadowColor: c.shadow,
       surfaceTintColor: Colors.transparent,
-      margin: const EdgeInsets.symmetric(vertical: 5),
+      margin: EdgeInsets.symmetric(vertical: d.hairGap),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppShape.container),
+        borderRadius: BorderRadius.circular(d.radiusXl),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
-        minimumSize: const Size.fromHeight(56),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: const TextStyle(
-          fontFamily: 'Pretendard',
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.2,
+        backgroundColor: c.accent,
+        foregroundColor: c.onAccent,
+        minimumSize: Size.fromHeight(d.controlHeight),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(d.radiusLg),
         ),
+        textStyle: t.subtitle,
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.ink,
-        minimumSize: const Size.fromHeight(56),
-        side: const BorderSide(color: AppColors.line, width: 1.2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: const TextStyle(
-          fontFamily: 'Pretendard',
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.2,
+        foregroundColor: c.ink,
+        minimumSize: Size.fromHeight(d.controlHeight),
+        side: BorderSide(color: c.line, width: 1.2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(d.radiusLg),
+        ),
+        textStyle: t.bodyLarge.copyWith(
+          fontWeight: t.semiBold,
+          letterSpacing: t.tightTracking * 0.33,
         ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: AppColors.slate,
-        textStyle: const TextStyle(
-          fontFamily: 'Pretendard',
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.1,
-        ),
-      ),
+      style: TextButton.styleFrom(foregroundColor: c.slate, textStyle: t.label),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppColors.card,
-      hintStyle: const TextStyle(color: AppColors.muted),
-      labelStyle: const TextStyle(color: AppColors.slate),
+      fillColor: c.card,
+      hintStyle: TextStyle(color: c.muted),
+      labelStyle: TextStyle(color: c.slate),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppShape.inner),
-        borderSide: const BorderSide(color: AppColors.line),
+        borderRadius: BorderRadius.circular(d.radiusLg),
+        borderSide: BorderSide(color: c.line),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppShape.inner),
-        borderSide: const BorderSide(color: AppColors.line),
+        borderRadius: BorderRadius.circular(d.radiusLg),
+        borderSide: BorderSide(color: c.line),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppShape.inner),
-        borderSide: const BorderSide(color: AppColors.accent, width: 1.6),
+        borderRadius: BorderRadius.circular(d.radiusLg),
+        borderSide: BorderSide(color: c.accent, width: 1.6),
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: AppColors.card,
-      indicatorColor: AppColors.accentSoft,
+      backgroundColor: c.card,
+      indicatorColor: c.accentSoft,
       surfaceTintColor: Colors.transparent,
-      shadowColor: AppColors.shadow,
+      shadowColor: c.shadow,
       elevation: 3,
       iconTheme: WidgetStateProperty.resolveWith(
         (states) => IconThemeData(
-          color: states.contains(WidgetState.selected)
-              ? AppColors.accent
-              : AppColors.muted,
+          color: states.contains(WidgetState.selected) ? c.accent : c.muted,
         ),
       ),
       labelTextStyle: WidgetStateProperty.resolveWith(
-        (states) => TextStyle(
-          fontFamily: 'Pretendard',
-          fontSize: 12,
-          fontWeight: states.contains(WidgetState.selected)
-              ? FontWeight.w700
-              : FontWeight.w500,
-          color: states.contains(WidgetState.selected)
-              ? AppColors.ink
-              : AppColors.muted,
+        (states) => t.small.copyWith(
+          fontWeight: states.contains(WidgetState.selected) ? t.bold : t.medium,
+          color: states.contains(WidgetState.selected) ? c.ink : c.muted,
         ),
       ),
     ),
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
-      color: AppColors.accent,
-      linearTrackColor: AppColors.wash,
+    progressIndicatorTheme: ProgressIndicatorThemeData(
+      color: c.accent,
+      linearTrackColor: c.wash,
     ),
-    dividerTheme: const DividerThemeData(color: AppColors.line),
+    dividerTheme: DividerThemeData(color: c.line),
     checkboxTheme: CheckboxThemeData(
       fillColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
-            ? AppColors.accent
+            ? c.accent
             : Colors.transparent,
       ),
-      side: const BorderSide(color: AppColors.muted, width: 1.6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      side: BorderSide(color: c.muted, width: 1.6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(d.radiusSm),
+      ),
     ),
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: AppColors.surface,
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: c.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(d.radiusXl + d.tightGap),
+        ),
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
-      style: IconButton.styleFrom(foregroundColor: AppColors.ink),
+      style: IconButton.styleFrom(foregroundColor: c.ink),
     ),
   );
 }

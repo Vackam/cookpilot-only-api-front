@@ -20,7 +20,9 @@ void main() {
     expect(find.text(draft.setupSnapshot.title), findsOneWidget);
   });
 
-  testWidgets('후기 초안과 활성 조리 세션이 함께 있으면 후기만 표시한다', (tester) async {
+  // 예전에는 후기 초안이 조리 카드를 밀어냈다. 후기를 쓸지는 사용자가 정할
+  // 일이라, 둘 다 있으면 둘 다 보여 주고 선택은 사용자에게 맡긴다.
+  testWidgets('후기 초안과 활성 조리 세션이 함께 있으면 카드 둘 다 표시한다', (tester) async {
     final draft = _buildDraft();
     var cookingSessionLoadAttempts = 0;
 
@@ -34,13 +36,14 @@ void main() {
     );
 
     expect(find.text('후기 작성 이어가기'), findsOneWidget);
-    expect(find.text('이어서 요리하기'), findsNothing);
-    expect(cookingSessionLoadAttempts, 0);
+    expect(find.text('이어서 요리하기'), findsOneWidget);
+    expect(cookingSessionLoadAttempts, 1);
   });
 
-  testWidgets('활성 세션 조회 중 새 후기 초안이 생기면 후기를 우선 표시한다', (tester) async {
+  testWidgets('활성 세션 조회 중 생긴 후기 초안도 카드로 잡는다', (tester) async {
     final activeLoad = Completer<PersistedCookingSession?>();
     final draft = _buildDraft();
+    var activeLoadFinished = false;
     var pendingLoadAttempts = 0;
 
     await tester.pumpWidget(
@@ -48,9 +51,10 @@ void main() {
         theme: buildCookPilotTheme(),
         home: HomeScreen(
           recipeRepository: _EmptyRecipeRepository(),
+          // 세션 조회가 끝난 뒤에 읽어야, 그 사이에 생긴 초안이 잡힌다.
           pendingReviewDraftLoader: () async {
             pendingLoadAttempts += 1;
-            return pendingLoadAttempts == 1 ? null : draft;
+            return activeLoadFinished ? draft : null;
           },
           cookingSessionLoader: () => activeLoad.future,
         ),
@@ -58,17 +62,19 @@ void main() {
     );
     await tester.pump();
 
+    activeLoadFinished = true;
     activeLoad.complete(_buildActiveSession());
     await tester.pumpAndSettle();
 
-    expect(pendingLoadAttempts, 2);
+    expect(pendingLoadAttempts, 1);
     expect(find.text('후기 작성 이어가기'), findsOneWidget);
-    expect(find.text('이어서 요리하기'), findsNothing);
+    expect(find.text('이어서 요리하기'), findsOneWidget);
   });
 
-  testWidgets('활성 세션 조회 실패 중 새 후기 초안이 생겨도 후기를 우선 표시한다', (tester) async {
+  testWidgets('활성 세션 조회가 실패해도 후기 초안이 있으면 그것만 표시한다', (tester) async {
     final activeLoad = Completer<PersistedCookingSession?>();
     final draft = _buildDraft();
+    var activeLoadFinished = false;
     var pendingLoadAttempts = 0;
 
     await tester.pumpWidget(
@@ -78,7 +84,7 @@ void main() {
           recipeRepository: _EmptyRecipeRepository(),
           pendingReviewDraftLoader: () async {
             pendingLoadAttempts += 1;
-            return pendingLoadAttempts == 1 ? null : draft;
+            return activeLoadFinished ? draft : null;
           },
           cookingSessionLoader: () => activeLoad.future,
         ),
@@ -86,10 +92,12 @@ void main() {
     );
     await tester.pump();
 
+    activeLoadFinished = true;
     activeLoad.completeError(StateError('active session read failure'));
     await tester.pumpAndSettle();
 
-    expect(pendingLoadAttempts, 2);
+    // 보여 줄 것이 남아 있으면 세션 조회 실패로 화면을 오류로 덮지 않는다.
+    expect(pendingLoadAttempts, 1);
     expect(find.text('후기 작성 이어가기'), findsOneWidget);
     expect(find.text('저장된 진행 상황을 불러오지 못했어요.'), findsNothing);
     expect(find.text('이어서 요리하기'), findsNothing);
@@ -128,37 +136,34 @@ void main() {
     expect(find.text('후기 작성 이어가기'), findsNothing);
   });
 
-  testWidgets('조리 재개 카드 표시 뒤 초안이 생기면 후기를 먼저 연다', (tester) async {
-    PendingReviewDraft? availableDraft;
-    PendingReviewDraft? receivedDraft;
+  // 작성 중인 후기가 있어도 조리 재개를 가로채지 않는다. 후기를 쓸지는
+  // 사용자가 정할 일이고, 초안은 홈의 "후기 작성 이어가기" 카드가 알린다.
+  testWidgets('작성 중인 후기가 있어도 이어서 요리하기는 조리 화면을 연다', (tester) async {
     var cookingRouteBuilds = 0;
 
     await _pumpHome(
       tester,
-      pendingReviewDraftLoader: () async => availableDraft,
+      pendingReviewDraftLoader: () async => _buildDraft(),
       cookingSessionLoader: () async => _buildActiveSession(),
-      reviewScreenBuilder: (draft) {
-        receivedDraft = draft;
-        return const Scaffold(body: Text('후기 재개 화면'));
-      },
+      reviewScreenBuilder: (_) => const Scaffold(body: Text('열리면 안 되는 후기 화면')),
       cookingScreenBuilder: (_, _) {
         cookingRouteBuilds += 1;
-        return const Scaffold(body: Text('열리면 안 되는 조리 화면'));
+        return const Scaffold(body: Text('조리 재개 화면'));
       },
     );
-    availableDraft = _buildDraft();
 
+    // 두 카드가 서로를 가리지 않고 함께 떠 있어야 한다.
+    expect(find.text('후기 작성 이어가기'), findsOneWidget);
     await tester.tap(find.text('이어서 요리하기'));
     await tester.pumpAndSettle();
 
-    expect(receivedDraft, same(availableDraft));
-    expect(cookingRouteBuilds, 0);
-    expect(find.text('후기 재개 화면'), findsOneWidget);
-    expect(find.text('열리면 안 되는 조리 화면'), findsNothing);
-    expect(find.text('작성 중인 후기를 먼저 이어갈게요.'), findsOneWidget);
+    expect(cookingRouteBuilds, 1);
+    expect(find.text('조리 재개 화면'), findsOneWidget);
+    expect(find.text('열리면 안 되는 후기 화면'), findsNothing);
+    expect(find.text('작성 중인 후기를 먼저 이어갈게요.'), findsNothing);
   });
 
-  testWidgets('조리 재개 직전 초안 조회 오류는 조리 화면을 열지 않는다', (tester) async {
+  testWidgets('조리 재개는 초안을 다시 조회하지 않는다', (tester) async {
     var pendingLoadAttempts = 0;
     var cookingRouteBuilds = 0;
 
@@ -166,41 +171,31 @@ void main() {
       tester,
       pendingReviewDraftLoader: () async {
         pendingLoadAttempts += 1;
-        if (pendingLoadAttempts > 2) {
-          throw StateError('pending review read failure');
-        }
         return null;
       },
       cookingSessionLoader: () async => _buildActiveSession(),
       cookingScreenBuilder: (_, _) {
         cookingRouteBuilds += 1;
-        return const Scaffold(body: Text('열리면 안 되는 조리 화면'));
+        return const Scaffold(body: Text('조리 재개 화면'));
       },
     );
+    final loadsBeforeResume = pendingLoadAttempts;
 
     await tester.tap(find.text('이어서 요리하기'));
     await tester.pumpAndSettle();
 
-    expect(pendingLoadAttempts, 3);
-    expect(cookingRouteBuilds, 0);
-    expect(find.text('저장된 진행 상황을 불러오지 못했어요.'), findsOneWidget);
-    expect(find.text('열리면 안 되는 조리 화면'), findsNothing);
+    // 재개 시점에는 초안을 보지 않으므로 조회 실패가 조리를 막을 일도 없다.
+    expect(pendingLoadAttempts, loadsBeforeResume);
+    expect(cookingRouteBuilds, 1);
+    expect(find.text('조리 재개 화면'), findsOneWidget);
   });
 
-  testWidgets('조리 재개 직전 초안 확인 중 중복 탭은 한 번만 처리한다', (tester) async {
-    final guardLoad = Completer<PendingReviewDraft?>();
-    var pendingLoadAttempts = 0;
+  testWidgets('조리 재개 중복 탭은 조리 화면을 한 번만 연다', (tester) async {
     var cookingRouteBuilds = 0;
 
     await _pumpHome(
       tester,
-      pendingReviewDraftLoader: () {
-        pendingLoadAttempts += 1;
-        if (pendingLoadAttempts <= 2) {
-          return Future<PendingReviewDraft?>.value(null);
-        }
-        return guardLoad.future;
-      },
+      pendingReviewDraftLoader: () async => null,
       cookingSessionLoader: () async => _buildActiveSession(),
       cookingScreenBuilder: (_, _) {
         cookingRouteBuilds += 1;
@@ -210,15 +205,8 @@ void main() {
     final resumeCard = find.text('이어서 요리하기');
     await tester.tap(resumeCard);
     await tester.tap(resumeCard);
-    await tester.pump();
-
-    expect(pendingLoadAttempts, 3);
-    expect(find.text('후기 상태 확인 중'), findsOneWidget);
-
-    guardLoad.complete(null);
     await tester.pumpAndSettle();
 
-    expect(pendingLoadAttempts, 3);
     expect(cookingRouteBuilds, 1);
     expect(find.text('조리 재개 화면'), findsOneWidget);
   });
@@ -293,7 +281,8 @@ void main() {
 
     expect(find.text('후기 작성 이어가기'), findsNothing);
     expect(find.text('이어서 요리하기'), findsNothing);
-    expect(loadAttempts, 3);
+    // 복구 한 번에 초안 조회는 한 번. 최초 진입과 후기 화면 복귀로 두 번이다.
+    expect(loadAttempts, 2);
   });
 
   testWidgets('복구 로드 오류는 활성 세션 대신 오류와 재시도를 표시한다', (tester) async {
@@ -319,15 +308,15 @@ void main() {
     expect(find.text('저장된 진행 상황을 불러오지 못했어요.'), findsOneWidget);
     expect(find.text('후기 작성 이어가기'), findsNothing);
     expect(find.text('이어서 요리하기'), findsNothing);
-    expect(cookingSessionLoadAttempts, 0);
+    expect(cookingSessionLoadAttempts, 1);
 
     await tester.tap(find.text('다시 시도'));
     await tester.pumpAndSettle();
 
     expect(loadAttempts, 2);
     expect(find.text('후기 작성 이어가기'), findsOneWidget);
-    expect(find.text('이어서 요리하기'), findsNothing);
-    expect(cookingSessionLoadAttempts, 0);
+    expect(find.text('이어서 요리하기'), findsOneWidget);
+    expect(cookingSessionLoadAttempts, 2);
   });
 
   testWidgets('활성 조리 저장소 로드 오류도 복구 오류로 표시한다', (tester) async {
@@ -373,47 +362,6 @@ void main() {
     expect(find.text('후기 작성 이어가기'), findsOneWidget);
 
     firstLoad.complete(null);
-    await tester.pumpAndSettle();
-
-    expect(find.text('후기 작성 이어가기'), findsOneWidget);
-    expect(find.text(latestDraft.setupSnapshot.title), findsOneWidget);
-    expect(find.text('이어서 요리하기'), findsNothing);
-  });
-
-  testWidgets('두 번째 초안 조회가 늦게 끝나도 최신 복구 결과를 덮어쓰지 않는다', (tester) async {
-    final delayedSecondLoad = Completer<PendingReviewDraft?>();
-    final latestDraft = _buildDraft();
-    var loadAttempts = 0;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildCookPilotTheme(),
-        home: HomeScreen(
-          recipeRepository: _EmptyRecipeRepository(),
-          pendingReviewDraftLoader: () {
-            loadAttempts += 1;
-            if (loadAttempts == 1) {
-              return Future<PendingReviewDraft?>.value(null);
-            }
-            if (loadAttempts == 2) {
-              return delayedSecondLoad.future;
-            }
-            return Future<PendingReviewDraft?>.value(latestDraft);
-          },
-          cookingSessionLoader: () async => null,
-        ),
-      ),
-    );
-    await tester.pump();
-    expect(loadAttempts, 2);
-
-    await tester.drag(find.byType(ListView), const Offset(0, 500));
-    await tester.pumpAndSettle();
-
-    expect(loadAttempts, 3);
-    expect(find.text('후기 작성 이어가기'), findsOneWidget);
-
-    delayedSecondLoad.complete(null);
     await tester.pumpAndSettle();
 
     expect(find.text('후기 작성 이어가기'), findsOneWidget);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/app_theme.dart';
+import '../../design/design_tokens.dart';
 import '../recipe/domain/recipe.dart';
 
 /// Wraps a tappable child and scales it down slightly on press, so buttons
@@ -60,8 +61,12 @@ class PageShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final space = context.space;
     final media = MediaQuery.of(context);
-    final horizontalPadding = media.size.width < 390 ? 16.0 : 20.0;
+    // 좁은 기기에서는 좌우 여백을 한 단계 줄여 본문 폭을 확보한다.
+    final horizontalPadding = media.size.width < 390
+        ? space.cardPadding
+        : space.screenPaddingX;
 
     return Scaffold(
       appBar: title == null
@@ -75,9 +80,9 @@ class PageShell extends StatelessWidget {
         child: ListView(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            12,
+            space.blockGap,
             horizontalPadding,
-            24,
+            space.majorGap,
           ),
           children: children,
         ),
@@ -87,9 +92,9 @@ class PageShell extends StatelessWidget {
           : SafeArea(
               minimum: EdgeInsets.fromLTRB(
                 horizontalPadding,
-                8,
+                space.snugGap,
                 horizontalPadding,
-                20,
+                space.screenPaddingX,
               ),
               child: bottom!,
             ),
@@ -106,16 +111,19 @@ class SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Padding(
-      padding: const EdgeInsets.only(top: 26, bottom: 12),
+      padding: EdgeInsets.only(top: space.majorGap, bottom: space.blockGap),
       child: Row(
         children: [
           Expanded(
             child: Text(
               title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: AppColors.ink,
+              style: type.title.copyWith(
+                fontWeight: type.extraBold,
+                color: color.ink,
               ),
             ),
           ),
@@ -123,20 +131,19 @@ class SectionTitle extends StatelessWidget {
           if (onMore != null)
             GestureDetector(
               onTap: onMore,
-              child: const Row(
+              child: Row(
                 children: [
                   Text(
                     '더보기',
-                    style: TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                    style: type.caption.copyWith(
+                      color: color.muted,
+                      fontWeight: type.semiBold,
                     ),
                   ),
                   Icon(
                     Icons.chevron_right_rounded,
-                    color: AppColors.muted,
-                    size: 18,
+                    color: color.muted,
+                    size: space.iconMd,
                   ),
                 ],
               ),
@@ -154,29 +161,43 @@ class FoodImage extends StatelessWidget {
     required this.image,
     this.width,
     this.height,
-    this.radius = AppShape.inner,
+    this.radius,
+    this.fit = BoxFit.cover,
+    this.neverUpscale = false,
   });
 
   final String image;
   final double? width;
   final double? height;
-  final double radius;
 
-  Widget _placeholder() {
+  /// 생략하면 디자인 토큰의 기본 모서리를 쓴다.
+  final double? radius;
+
+  /// 칸을 잘라 채울지(cover), 비율을 지켜 여백을 남길지(contain).
+  final BoxFit fit;
+
+  /// 원본 픽셀보다 크게 늘려 그리지 않는다. [fit]보다 우선한다.
+  ///
+  /// 사진을 크게 보여주는 자리에서 원본이 칸보다 작으면 늘어나면서 뭉개진다.
+  /// 켜면 여백을 남기더라도 원본 해상도를 지킨다.
+  final bool neverUpscale;
+
+  Widget _placeholder(BuildContext context) {
+    final color = context.color;
     return Container(
       width: width,
       height: height,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFBEBD9), Color(0xFFF3D8BC)],
+          colors: [color.placeholderFrom, color.placeholderTo],
         ),
       ),
-      child: const Icon(
+      child: Icon(
         Icons.restaurant_rounded,
-        color: Color(0xFFC08A5A),
-        size: 32,
+        color: color.placeholderIcon,
+        size: context.space.iconXl,
       ),
     );
   }
@@ -184,15 +205,20 @@ class FoodImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
+      borderRadius: BorderRadius.circular(radius ?? context.space.radiusLg),
       child: image.isEmpty
-          ? _placeholder()
+          ? _placeholder(context)
           : Image.network(
               image,
               width: width,
               height: height,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stack) => _placeholder(),
+              // scale이 원본의 논리 크기를 정한다. 화면 배율을 넣어야 scaleDown이
+              // "실제 픽셀 1:1"에서 멈추고, 그 위로는 늘리지 않는다.
+              scale: neverUpscale
+                  ? MediaQuery.devicePixelRatioOf(context)
+                  : 1.0,
+              fit: neverUpscale ? BoxFit.scaleDown : fit,
+              errorBuilder: (context, error, stack) => _placeholder(context),
             ),
     );
   }
@@ -207,24 +233,23 @@ class RatingBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.star_rounded, color: AppColors.accent, size: 16),
-        const SizedBox(width: 2),
+        Icon(Icons.star_rounded, color: color.accent, size: space.iconSm),
+        SizedBox(width: space.hairGap),
         Text(
           rating.toStringAsFixed(1),
-          style: const TextStyle(
-            color: AppColors.ink,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
+          style: type.caption.copyWith(color: color.ink, fontWeight: type.bold),
         ),
         if (reviewCount != null) ...[
-          const SizedBox(width: 3),
+          SizedBox(width: space.hairGap),
           Text(
             '(${reviewCount! >= 1000 ? '${(reviewCount! / 1000).toStringAsFixed(1)}k' : reviewCount})',
-            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            style: type.small.copyWith(color: color.muted),
           ),
         ],
       ],
@@ -240,19 +265,18 @@ class ImageLabelChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: space.chipInsets,
       decoration: BoxDecoration(
-        color: AppColors.accent,
-        borderRadius: BorderRadius.circular(8),
+        color: color.accent,
+        borderRadius: BorderRadius.circular(space.radiusSm),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
+        style: type.tiny.copyWith(color: color.onAccent, fontWeight: type.bold),
       ),
     );
   }
@@ -281,19 +305,26 @@ class FoodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final thumb = FoodImage(image: image, width: 76, height: 76);
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
+    final thumb = FoodImage(
+      image: image,
+      width: space.thumbSize,
+      height: space.thumbSize,
+    );
 
     return PressableScale(
       child: Card(
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppShape.container),
+          borderRadius: BorderRadius.circular(space.radiusXl),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(space.blockGap),
             child: Row(
               children: [
                 thumb,
-                const SizedBox(width: 14),
+                SizedBox(width: space.blockGap),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -302,25 +333,17 @@ class FoodTile extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                          letterSpacing: -0.2,
-                          color: AppColors.ink,
-                        ),
+                        style: type.subtitle.copyWith(color: color.ink),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: space.hairGap),
                       Text(
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.slate,
-                          fontSize: 13,
-                        ),
+                        style: type.caption.copyWith(color: color.slate),
                       ),
                       if (rating != null) ...[
-                        const SizedBox(height: 6),
+                        SizedBox(height: space.tightGap),
                         RatingBadge(rating!, reviewCount: reviewCount),
                       ],
                     ],
@@ -346,22 +369,25 @@ class RecipeHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return PressableScale(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppShape.container),
-            boxShadow: const [
+            borderRadius: BorderRadius.circular(space.radiusXl),
+            boxShadow: [
               BoxShadow(
-                color: AppColors.shadow,
-                blurRadius: 24,
-                offset: Offset(0, 10),
+                color: color.shadow,
+                blurRadius: space.shadowBlur,
+                offset: Offset(0, space.shadowLift),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppShape.container),
+            borderRadius: BorderRadius.circular(space.radiusXl),
             child: AspectRatio(
               aspectRatio: 16 / 11,
               child: Stack(
@@ -369,26 +395,26 @@ class RecipeHeroCard extends StatelessWidget {
                 children: [
                   FoodImage(image: recipe.imageUrl, radius: 0),
                   // 하단 텍스트 가독성을 위한 딥브라운 그라데이션.
-                  const DecoratedBox(
+                  DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        stops: [0.45, 1],
-                        colors: [Colors.transparent, Color(0xCC1F1209)],
+                        stops: const [0.45, 1],
+                        colors: [Colors.transparent, color.scrimStrong],
                       ),
                     ),
                   ),
                   if (recipe.badge != null)
                     Positioned(
-                      left: 14,
-                      top: 14,
+                      left: space.cardPadding,
+                      top: space.cardPadding,
                       child: ImageLabelChip(recipe.badge!),
                     ),
                   Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 16,
+                    left: space.cardPadding,
+                    right: space.cardPadding,
+                    bottom: space.cardPadding,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -396,43 +422,37 @@ class RecipeHeroCard extends StatelessWidget {
                           recipe.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
+                          style: type.heroTitle.copyWith(
+                            color: color.onInverse,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: space.tightGap),
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.schedule_rounded,
-                              color: Colors.white70,
-                              size: 15,
+                              color: color.onInverseMuted,
+                              size: space.iconSm,
                             ),
-                            const SizedBox(width: 4),
+                            SizedBox(width: space.hairGap),
                             Text(
                               '${recipe.timerMinutes}분 타이머',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
+                              style: type.caption.copyWith(
+                                color: color.onInverseMuted,
                               ),
                             ),
-                            const SizedBox(width: 10),
-                            const Icon(
+                            SizedBox(width: space.itemGap),
+                            Icon(
                               Icons.people_alt_rounded,
-                              color: Colors.white70,
-                              size: 15,
+                              color: color.onInverseMuted,
+                              size: space.iconSm,
                             ),
-                            const SizedBox(width: 4),
+                            SizedBox(width: space.hairGap),
                             Text(
                               '${recipe.baseServings.toStringAsFixed(recipe.baseServings % 1 == 0 ? 0 : 1)}인분',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                              style: type.caption.copyWith(
+                                color: color.onInverse,
+                                fontWeight: type.semiBold,
                               ),
                             ),
                           ],
@@ -458,25 +478,30 @@ class Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return AnimatedContainer(
       duration: AppMotion.short,
       curve: AppMotion.easeInOut,
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: space.blockGap,
+        vertical: space.snugGap,
+      ),
       decoration: BoxDecoration(
-        color: selected ? AppColors.accent : AppColors.card,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: selected ? AppColors.accent : AppColors.line),
+        color: selected ? color.accent : color.card,
+        borderRadius: BorderRadius.circular(space.radiusPill),
+        border: Border.all(color: selected ? color.accent : color.line),
       ),
       child: AnimatedDefaultTextStyle(
         duration: AppMotion.short,
         curve: AppMotion.easeInOut,
         // AnimatedDefaultTextStyle은 테마의 DefaultTextStyle을 대체하므로
-        // fontFamily를 명시하지 않으면 한글이 없는 플랫폼 기본 폰트로 떨어진다.
-        style: TextStyle(
-          fontFamily: 'Pretendard',
-          color: selected ? Colors.white : AppColors.slate,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
+        // 타입 토큰(fontFamily 포함)을 통째로 넘기지 않으면 한글이 없는
+        // 플랫폼 기본 폰트로 떨어진다.
+        style: type.caption.copyWith(
+          color: selected ? color.onAccent : color.slate,
+          fontWeight: type.semiBold,
         ),
         child: Text(label),
       ),
@@ -498,17 +523,20 @@ class InfoStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(space.cardPadding),
       decoration: BoxDecoration(
-        color: AppColors.wash,
-        borderRadius: BorderRadius.circular(AppShape.inner),
+        color: color.wash,
+        borderRadius: BorderRadius.circular(space.radiusLg),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.accent),
-          const SizedBox(width: 10),
+          Icon(icon, color: color.accent),
+          SizedBox(width: space.itemGap),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,13 +545,13 @@ class InfoStrip extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink,
+                  style: type.body.copyWith(
+                    fontWeight: type.bold,
+                    color: color.ink,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(body, style: const TextStyle(color: AppColors.slate)),
+                SizedBox(height: space.hairGap),
+                Text(body, style: type.body.copyWith(color: color.slate)),
               ],
             ),
           ),

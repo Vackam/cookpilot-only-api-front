@@ -3,7 +3,6 @@ import 'package:cookpilot/features/mvp/cook_flow_screens.dart';
 import 'package:cookpilot/features/recipe/data/recipe_api.dart';
 import 'package:cookpilot/features/recipe/domain/recipe.dart';
 import 'package:cookpilot/features/recommendation/data/recommendation_api.dart';
-import 'package:cookpilot/features/review/application/pending_review_draft_store.dart';
 import 'package:cookpilot/features/review/data/personal_version_approval_api.dart';
 import 'package:cookpilot/features/user/data/beta_user_repository.dart';
 import 'package:flutter/material.dart';
@@ -90,7 +89,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(
             hasPersonalVersion: true,
             latestPersonalVersionId: versionId,
@@ -198,7 +196,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(
             hasPersonalVersion: true,
             latestPersonalVersionId: versionId,
@@ -327,7 +324,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(
             hasPersonalVersion: true,
             latestPersonalVersionId: secondVersionId,
@@ -354,7 +350,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(),
           sessionAlarm: const SilentTimerAlarm(),
         ),
@@ -377,7 +372,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(),
           sessionAlarm: const SilentTimerAlarm(),
           sessionSpeechInput: speech,
@@ -414,7 +408,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(),
           sessionAlarm: const SilentTimerAlarm(),
           sessionSpeechInput: speech,
@@ -452,7 +445,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(),
           sessionAlarm: const SilentTimerAlarm(),
         ),
@@ -481,12 +473,7 @@ void main() {
 
   testWidgets('재료를 직접 입력한 다른 재료로 대체할 수 있다', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: CookSetupScreen(
-          recipe: _recipe(),
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
-        ),
-      ),
+      MaterialApp(home: CookSetupScreen(recipe: _recipe())),
     );
 
     await tester.tap(find.text('수정').at(1));
@@ -506,7 +493,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(),
           sessionAlarm: const SilentTimerAlarm(),
         ),
@@ -547,7 +533,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(baseServings: 0),
           sessionAlarm: const SilentTimerAlarm(),
         ),
@@ -567,12 +552,7 @@ void main() {
 
   testWidgets('필수 재료도 경고를 확인한 뒤 이번 조리에서 생략할 수 있다', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: CookSetupScreen(
-          recipe: _recipe(),
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
-        ),
-      ),
+      MaterialApp(home: CookSetupScreen(recipe: _recipe())),
     );
 
     await tester.tap(find.text('수정').at(1));
@@ -598,7 +578,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(),
           recommendationDataSource: recommendations,
           sessionAlarm: const SilentTimerAlarm(),
@@ -632,7 +611,6 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: CookSetupScreen(
-          pendingReviewDraftStore: _noPendingReviewDraftStore,
           recipe: _recipe(eggName: '메추리알'),
           recommendationDataSource: recommendations,
         ),
@@ -646,21 +624,6 @@ void main() {
     expect(find.textContaining('생략되거나 대체되어'), findsOneWidget);
     expect(recommendations.lastDecision, isNull);
   });
-}
-
-const _noPendingReviewDraftStore = _NoPendingReviewDraftStore();
-
-final class _NoPendingReviewDraftStore implements PendingReviewDraftGateway {
-  const _NoPendingReviewDraftStore();
-
-  @override
-  Future<void> clear() async {}
-
-  @override
-  Future<PendingReviewDraft?> load() async => null;
-
-  @override
-  Future<void> save(PendingReviewDraft draft) async {}
 }
 
 Recipe _recipe({
