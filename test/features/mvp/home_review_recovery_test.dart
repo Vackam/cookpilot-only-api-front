@@ -542,7 +542,7 @@ class _EmptyRecipeRepository extends RecipeRepository {
   var findFavoritesCalls = 0;
 
   @override
-  Future<List<RecipeSummary>> findAll() async {
+  Future<List<RecipeSummary>> findAll({int page = 0, int size = 10}) async {
     findAllCalls += 1;
     return const [];
   }

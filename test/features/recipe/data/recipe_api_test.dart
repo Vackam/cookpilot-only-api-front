@@ -38,20 +38,29 @@ void main() {
     final repository = RecipeRepository(
       baseUrl: baseUrl,
       client: MockClient((request) async {
-        expect(request.url.toString(), '$baseUrl/api/v1/recipes');
+        expect(
+          request.url.toString(),
+          '$baseUrl/api/v1/recipes?page=0&size=10',
+        );
         expect(request.headers[cookPilotUserIdHeader], userId);
         return _jsonResponse('''
-          [
-            {
-              "id": "$recipeId",
-              "title": "라면",
-              "description": "기본 라면",
-              "imageUrl": null,
-              "hasPersonalVersion": true,
-              "latestPersonalVersionId": "20000000-0000-0000-0000-000000000001",
-              "favorite": true
-            }
-          ]
+          {
+            "items": [
+              {
+                "id": "$recipeId",
+                "title": "라면",
+                "description": "기본 라면",
+                "imageUrl": null,
+                "hasPersonalVersion": true,
+                "latestPersonalVersionId": "20000000-0000-0000-0000-000000000001",
+                "favorite": true
+              }
+            ],
+            "page": 0,
+            "size": 10,
+            "totalElements": 1,
+            "hasNext": false
+          }
         ''');
       }),
     );

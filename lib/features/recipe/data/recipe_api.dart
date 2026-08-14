@@ -148,8 +148,18 @@ class RecipeRepository {
   final http.Client _client;
   final String _baseUrl;
 
-  Future<List<RecipeSummary>> findAll() async {
-    return _findSummaries('/api/v1/recipes');
+  /// 전체 레시피는 서버가 페이지 단위로 내려준다. 응답의 `hasNext`·`totalElements`는
+  /// 아직 쓰는 화면이 없어 버리고, 더보기 UI를 붙일 때 노출한다.
+  Future<List<RecipeSummary>> findAll({int page = 0, int size = 10}) async {
+    final response = await _get('/api/v1/recipes?page=$page&size=$size');
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic> || decoded['items'] is! List) {
+      throw const RecipeApiException('레시피 목록 응답 형식이 올바르지 않습니다.');
+    }
+
+    return (decoded['items'] as List)
+        .map((item) => RecipeSummary.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
   }
 
   Future<List<RecipeSummary>> findRecent() async {

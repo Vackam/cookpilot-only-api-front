@@ -15,6 +15,10 @@ import 'mvp_widgets.dart';
 
 final _recipeRepository = RecipeRepository();
 
+/// 검색과 제목 매칭은 클라이언트에서 하므로 기본 페이지(10건)로는 부족하다.
+/// 서버가 허용하는 최대 페이지 크기와 같은 값이다.
+const _localScanPageSize = 100;
+
 typedef HomeReviewScreenBuilder =
     Widget Function(PendingReviewDraft initialDraft);
 typedef HomePendingReviewDraftLoader = Future<PendingReviewDraft?> Function();
@@ -265,7 +269,9 @@ class _HomeScreenState extends State<HomeScreen> {
         if (recipeId != null && recipeId.isNotEmpty) {
           recipe = await _homeRecipeRepository.findByRecipeId(recipeId);
         } else {
-          final summaries = await _homeRecipeRepository.findAll();
+          final summaries = await _homeRecipeRepository.findAll(
+            size: _localScanPageSize,
+          );
           final matches = summaries
               .where((summary) => summary.title == session.recipeTitle)
               .toList(growable: false);
@@ -585,11 +591,13 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void initState() {
     super.initState();
-    _recipes = _recipeRepository.findAll();
+    _recipes = _recipeRepository.findAll(size: _localScanPageSize);
   }
 
   void _retry() {
-    setState(() => _recipes = _recipeRepository.findAll());
+    setState(
+      () => _recipes = _recipeRepository.findAll(size: _localScanPageSize),
+    );
   }
 
   @override
