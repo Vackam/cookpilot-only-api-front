@@ -48,6 +48,45 @@ class RecipeSummary {
   final DateTime? favoritedAt;
 }
 
+class RecipePage {
+  const RecipePage({
+    required this.items,
+    required this.page,
+    required this.size,
+    required this.totalElements,
+    required this.hasNext,
+  });
+
+  factory RecipePage.fromJson(Map<String, dynamic> json) {
+    final itemsJson = json['items'];
+    if (itemsJson is! List ||
+        itemsJson.any((item) => item is! Map<String, dynamic>)) {
+      throw const RecipeApiException('레시피 목록 응답 형식이 올바르지 않습니다.');
+    }
+
+    return RecipePage(
+      items: itemsJson
+          .map((item) => RecipeSummary.fromJson(item as Map<String, dynamic>))
+          .toList(growable: false),
+      page: _requiredInt(json, 'page'),
+      size: _requiredInt(json, 'size'),
+      totalElements: _requiredInt(json, 'totalElements'),
+      hasNext: json['hasNext'] as bool? ?? false,
+    );
+  }
+
+  final List<RecipeSummary> items;
+
+  /// 0부터 센다. 서버 계약이 그렇다 — 화면에 보여줄 때만 +1 한다.
+  final int page;
+  final int size;
+  final int totalElements;
+  final bool hasNext;
+
+  /// 마지막 페이지 번호+1. 결과가 없으면 0.
+  int get totalPages => size <= 0 ? 0 : (totalElements + size - 1) ~/ size;
+}
+
 class PersonalRecipeVersionSummary {
   const PersonalRecipeVersionSummary({
     required this.id,
@@ -148,18 +187,40 @@ class RecipeRepository {
   final http.Client _client;
   final String _baseUrl;
 
-  /// 전체 레시피는 서버가 페이지 단위로 내려준다. 응답의 `hasNext`·`totalElements`는
-  /// 아직 쓰는 화면이 없어 버리고, 더보기 UI를 붙일 때 노출한다.
+  /// 전체 레시피는 서버가 페이지 단위로 내려준다.
   Future<List<RecipeSummary>> findAll({int page = 0, int size = 10}) async {
-    final response = await _get('/api/v1/recipes?page=$page&size=$size');
+    final result = await _findPage('/api/v1/recipes?page=$page&size=$size');
+    return result.items;
+  }
+
+  /// 서버 검색. 조건이 비면 전체 카탈로그를 페이지로 훑는다.
+  ///
+  /// `title`과 `ingredient`를 함께 주면 둘 다 만족하는 결과만 온다(AND).
+  /// [size] 상한은 서버와 같은 100 — 넘기면 400이 온다.
+  Future<RecipePage> search({
+    String title = '',
+    String ingredient = '',
+    int page = 0,
+    int size = 9,
+  }) async {
+    final query = Uri(
+      queryParameters: {
+        'title': title.trim(),
+        'ingredient': ingredient.trim(),
+        'page': '$page',
+        'size': '$size',
+      },
+    ).query;
+    return _findPage('/api/v1/recipes/search?$query');
+  }
+
+  Future<RecipePage> _findPage(String path) async {
+    final response = await _get(path);
     final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic> || decoded['items'] is! List) {
+    if (decoded is! Map<String, dynamic>) {
       throw const RecipeApiException('레시피 목록 응답 형식이 올바르지 않습니다.');
     }
-
-    return (decoded['items'] as List)
-        .map((item) => RecipeSummary.fromJson(item as Map<String, dynamic>))
-        .toList(growable: false);
+    return RecipePage.fromJson(decoded);
   }
 
   Future<List<RecipeSummary>> findRecent() async {
