@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:cookpilot/features/cooking/application/coach_transcript_store.dart';
+import 'package:cookpilot/features/cooking/application/cooking_coach_controller.dart';
 import 'package:cookpilot/features/cooking/application/cooking_ports.dart';
 import 'package:cookpilot/features/cooking/application/monotonic_clock.dart';
 
@@ -264,5 +266,92 @@ final class QueuedExceptionAdvicePort implements ExceptionAdvicePort {
     final completer = Completer<ExceptionAdvice>();
     completions.add(completer);
     return completer.future;
+  }
+}
+
+/// 코치 대화 로그의 저장·복원·정리 호출을 관찰한다.
+final class FakeCoachTranscriptStore implements CoachTranscriptGateway {
+  FakeCoachTranscriptStore({this.stored, this.failSave = false});
+
+  /// 앱 시작 시점에 이미 저장돼 있던 로그.
+  CoachTranscript? stored;
+  bool failSave;
+
+  final List<CoachTranscript> saved = <CoachTranscript>[];
+  int saveAttempts = 0;
+  int loadCount = 0;
+  int clearCount = 0;
+
+  @override
+  Future<void> save(CoachTranscript transcript) async {
+    saveAttempts++;
+    if (failSave) {
+      throw StateError('save failed');
+    }
+    saved.add(transcript);
+    stored = transcript;
+  }
+
+  @override
+  Future<CoachTranscript?> load() async {
+    loadCount++;
+    return stored;
+  }
+
+  @override
+  Future<void> clear() async {
+    clearCount++;
+    stored = null;
+  }
+}
+
+/// 세션을 열지 않고 시작 시점 프롬프트만 붙잡는 코치 엔진.
+final class FakeCoachEngine implements CookingCoachEngine {
+  FakeCoachEngine({required this.onStateChanged, required this.buildPrompt});
+
+  final CookingCoachStateHandler onStateChanged;
+  final String Function() buildPrompt;
+
+  /// start()마다 그 시점의 프롬프트를 그대로 기록한다.
+  final List<String> startPrompts = <String>[];
+  final List<String> contextUpdates = <String>[];
+
+  CookingCoachPhase _phase = CookingCoachPhase.idle;
+
+  @override
+  CookingCoachPhase get phase => _phase;
+
+  @override
+  bool get isActive => _phase != CookingCoachPhase.idle;
+
+  @override
+  Future<void> start(String recipeId) async {
+    startPrompts.add(buildPrompt());
+    _emit(CookingCoachPhase.live, '코치가 듣고 있어요.');
+  }
+
+  @override
+  void interrupt() {}
+
+  @override
+  void updateContext(String text) {
+    if (_phase == CookingCoachPhase.live) {
+      contextUpdates.add(text);
+    }
+  }
+
+  @override
+  Future<void> stop() async {
+    _emit(CookingCoachPhase.idle, 'AI 코치를 껐어요.');
+  }
+
+  @override
+  void dispose() {
+    _phase = CookingCoachPhase.idle;
+  }
+
+  void _emit(CookingCoachPhase phase, String? message) {
+    _phase = phase;
+    onStateChanged(phase, message);
   }
 }

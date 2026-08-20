@@ -21,8 +21,8 @@ import 'cook_session_view_model.dart';
 /// 2. **글자가 사진 밝기에 좌우되지 않는다.** 패널은 진짜 표면(`card`) 위라 `ink`/`slate`를
 ///    그대로 쓸 수 있다. 스크림 위에 글자를 얹던 이전 안은 사진이 밝으면 읽히지 않았다.
 ///
-/// 조작은 여전히 가운데 원 하나다. 안쪽은 마이크, 둘레 링은 남은 시간.
-/// 탭하면 말하기, 길게 누르면 타이머.
+/// 조작은 여전히 가운데 원 하나다. 안쪽은 AI 코치, 둘레 링은 남은 시간.
+/// 탭하면 코치를 켜고 끄고, 길게 누르면 타이머.
 class OneControlCookLayout extends CookLayout {
   const OneControlCookLayout() : super(id: 'one-control', label: '원 컨트롤');
 
@@ -373,14 +373,15 @@ class _ControlPanel extends StatelessWidget {
                   semanticLabel: '직접 입력',
                 ),
                 SizedBox(width: space.tightGap),
+                // 원이 코치 조작을 가져갔으므로 말하기는 여기로 내려왔다.
                 _OverlayCircleButton(
-                  buttonKey: const Key('coach-toggle'),
-                  icon: vm.coachActive
+                  buttonKey: const Key('voice-input-toggle'),
+                  icon: vm.speechIsActive
                       ? Icons.stop_rounded
-                      : Icons.headset_mic_rounded,
+                      : Icons.mic_rounded,
                   size: space.overlayButtonSize,
-                  onTap: vm.canToggleCoach ? vm.onToggleCoach : null,
-                  semanticLabel: vm.coachButtonLabel,
+                  onTap: vm.canToggleSpeech ? vm.onToggleSpeech : null,
+                  semanticLabel: vm.speechButtonLabel,
                 ),
               ],
             ),
@@ -399,7 +400,7 @@ class _ControlPanel extends StatelessWidget {
             SizedBox(height: space.snugGap),
             _ControlRow(vm: vm),
             Text(
-              vm.hasTimer ? '탭하면 말하기 · 길게 누르면 타이머' : '탭하면 말하기',
+              vm.hasTimer ? '탭하면 코치 켜고 끄기 · 길게 누르면 타이머' : '탭하면 코치 켜고 끄기',
               textAlign: TextAlign.center,
               style: type.tiny.copyWith(color: color.muted),
             ),
@@ -562,9 +563,10 @@ class _ControlRow extends StatelessWidget {
   }
 }
 
-/// 이 배치의 유일한 주 조작점.
+/// 이 배치의 주 조작점.
 ///
-/// 탭은 말하기, 길게 누르기는 타이머다. 링은 남은 시간이라 시간이 갈수록 줄어든다.
+/// 탭은 AI 코치 켜고 끄기, 길게 누르기는 타이머다. 조리 중 음성 상대는 코치라서
+/// 가장 큰 조작점을 코치가 가져간다. 링은 남은 시간이라 시간이 갈수록 줄어든다.
 class _RingControl extends StatelessWidget {
   const _RingControl({required this.vm});
 
@@ -578,15 +580,15 @@ class _RingControl extends StatelessWidget {
     return AnimatedBuilder(
       animation: vm.timer,
       builder: (context, _) {
-        final listening = vm.speechIsActive;
+        final live = vm.coachActive;
         return Semantics(
           button: true,
-          label: vm.speechButtonLabel,
+          label: vm.coachButtonLabel,
           hint: vm.hasTimer ? vm.timerActionLabel() : null,
           child: PressableScale(
             child: GestureDetector(
-              key: const Key('voice-input-toggle'),
-              onTap: vm.canToggleSpeech ? vm.onToggleSpeech : null,
+              key: const Key('coach-toggle'),
+              onTap: vm.canToggleCoach ? vm.onToggleCoach : null,
               onLongPress: vm.canToggleTimer ? vm.onToggleTimer : null,
               child: CustomPaint(
                 painter: _TimerRingPainter(
@@ -604,23 +606,23 @@ class _RingControl extends StatelessWidget {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: listening ? color.accent : color.inverseSurface,
+                        color: live ? color.accent : color.inverseSurface,
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            listening ? Icons.stop_rounded : Icons.mic_rounded,
+                            live
+                                ? Icons.stop_rounded
+                                : Icons.headset_mic_rounded,
                             size: space.iconXl,
-                            color: listening ? color.onAccent : color.onInverse,
+                            color: live ? color.onAccent : color.onInverse,
                           ),
                           if (vm.hasTimer)
                             Text(
                               formatRemaining(vm.timer.remaining),
                               style: type.label.copyWith(
-                                color: listening
-                                    ? color.onAccent
-                                    : color.onInverse,
+                                color: live ? color.onAccent : color.onInverse,
                                 fontFeatures: const [
                                   FontFeature.tabularFigures(),
                                 ],

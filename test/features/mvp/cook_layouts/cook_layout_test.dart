@@ -23,6 +23,8 @@ void main() {
   CookSessionViewModel buildViewModel({
     VoidCallback? onToggleSpeech,
     VoidCallback? onToggleTimer,
+    VoidCallback? onToggleCoach,
+    CookingCoachPhase coachPhase = CookingCoachPhase.idle,
     String? coachMessage,
     String? helpAnswer,
     String? finishError,
@@ -43,8 +45,7 @@ void main() {
     speechTitle: '음성으로 조리하기',
     speechBody: '단계 이동, 현재 안내, 타이머 조작을 말로 할 수 있어요.',
     speechButtonLabel: '말하기',
-    coachPhase: CookingCoachPhase.idle,
-    coachActive: false,
+    coachPhase: coachPhase,
     coachMessage: coachMessage,
     helpLoading: false,
     helpAnswer: helpAnswer,
@@ -58,7 +59,7 @@ void main() {
     onResetTimer: () {},
     onToggleSpeech: onToggleSpeech ?? () {},
     onAskHelp: () {},
-    onToggleCoach: () {},
+    onToggleCoach: onToggleCoach ?? () {},
     onAdvance: () {},
     onPrevStep: () {},
   );
@@ -116,29 +117,59 @@ void main() {
     // Galaxy A52s를 가로로 눕혔을 때의 논리 크기.
     const landscape = Size(892, 412);
 
-    testWidgets('원을 탭하면 말하기, 길게 누르면 타이머가 움직인다', (tester) async {
-      var speechToggles = 0;
+    testWidgets('원을 탭하면 코치 토글, 길게 누르면 타이머가 움직인다', (tester) async {
+      var coachToggles = 0;
       var timerToggles = 0;
       await pumpLayout(
         tester,
         const OneControlCookLayout(),
         buildViewModel(
-          onToggleSpeech: () => speechToggles++,
+          onToggleCoach: () => coachToggles++,
           onToggleTimer: () => timerToggles++,
         ),
         size: landscape,
       );
 
-      final ring = find.byKey(const Key('voice-input-toggle'));
+      final ring = find.byKey(const Key('coach-toggle'));
       await tester.tap(ring);
       await tester.pump();
-      expect(speechToggles, 1);
+      expect(coachToggles, 1);
       expect(timerToggles, 0);
 
       await tester.longPress(ring);
       await tester.pump();
-      expect(speechToggles, 1);
+      expect(coachToggles, 1);
       expect(timerToggles, 1);
+    });
+
+    // 코치가 살아 있는 동안에는 STT가 코치 음성을 받아 적으므로, 조리 화면도
+    // 말하기를 잠근다. 잠그지 않으면 코치와 마이크가 서로를 먹는다.
+    testWidgets('코치가 켜져 있으면 말하기 버튼을 잠근다', (tester) async {
+      await pumpLayout(
+        tester,
+        const OneControlCookLayout(),
+        buildViewModel(coachPhase: CookingCoachPhase.live),
+        size: landscape,
+      );
+
+      final speech = tester.widget<InkWell>(
+        find.byKey(const Key('voice-input-toggle')),
+      );
+      expect(speech.onTap, isNull);
+    });
+
+    testWidgets('코치가 꺼져 있으면 말하기 버튼이 살아 있다', (tester) async {
+      var speechToggles = 0;
+      await pumpLayout(
+        tester,
+        const OneControlCookLayout(),
+        buildViewModel(onToggleSpeech: () => speechToggles++),
+        size: landscape,
+      );
+
+      await tester.tap(find.byKey(const Key('voice-input-toggle')));
+      await tester.pump();
+      expect(speechToggles, 1);
     });
 
     testWidgets('남은 시간이 조작 원 안에 함께 나온다', (tester) async {
@@ -151,7 +182,7 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.byKey(const Key('voice-input-toggle')),
+          of: find.byKey(const Key('coach-toggle')),
           matching: find.text('05:00'),
         ),
         findsOneWidget,

@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import '../../app/app_theme.dart';
 import '../../core/identity/uuid_v4.dart';
 import '../../design/design_tokens.dart';
+import '../cooking/application/coach_transcript_recorder.dart';
+import '../cooking/application/coach_transcript_store.dart';
 import '../cooking/application/cooking_coach_controller.dart';
 import '../cooking/application/cooking_ports.dart';
 import '../cooking/application/cooking_session_store.dart';
@@ -727,12 +729,6 @@ class _CookSetupScreenState extends State<CookSetupScreen> {
         onPressed: () => Navigator.of(context).pop(),
         icon: const Icon(Icons.chevron_left_rounded),
       ),
-      actions: [
-        IconButton(
-          onPressed: () {},
-          icon: const Icon(Icons.help_outline_rounded),
-        ),
-      ],
       children: [
         Wrap(
           spacing: space.snugGap,
@@ -1612,6 +1608,7 @@ class CookSessionScreen extends StatefulWidget {
     this.coachControllerFactory,
     this.pendingReviewDraftStore,
     this.cookingSessionStore,
+    this.coachTranscriptStore,
   });
 
   final Recipe recipe;
@@ -1644,8 +1641,12 @@ class CookSessionScreen extends StatefulWidget {
   final bool handsFreeVoiceEnabled;
 
   /// 테스트에서 fake 포트로 구성한 AI 코치 컨트롤러를 주입한다. null이면
-  /// ElevenLabs 엔진을 구성한다.
-  final CookingCoachEngine Function(CookingCoachStateHandler onStateChanged)?
+  /// ElevenLabs 엔진을 구성한다. 세션 시작 시점에 나가는 프롬프트를 검증할 수
+  /// 있도록 실제 엔진과 같은 [buildRecipePrompt]를 함께 넘긴다.
+  final CookingCoachEngine Function(
+    CookingCoachStateHandler onStateChanged,
+    String Function() buildRecipePrompt,
+  )?
   coachControllerFactory;
 
   /// 테스트에서 완료 draft 저장의 성공·실패·지연을 제어하기 위한 주입 지점.
@@ -1653,6 +1654,9 @@ class CookSessionScreen extends StatefulWidget {
 
   /// 테스트에서 active-session 저장·정리 실패를 제어하기 위한 주입 지점.
   final CookingSessionGateway? cookingSessionStore;
+
+  /// 테스트에서 코치 대화 로그 저장·정리를 관찰하기 위한 주입 지점.
+  final CoachTranscriptGateway? coachTranscriptStore;
 
   @override
   State<CookSessionScreen> createState() => _CookSessionScreenState();
@@ -1677,11 +1681,15 @@ class _CookSessionScreenState extends State<CookSessionScreen>
   // ElevenLabs WebRTC SDK — 에코 캔슬·음성 barge-in 내장.
   // toolHandlers의 이름은 대시보드 client tool 정의와 정확히 일치해야 한다.
   late final CookingCoachEngine _coach =
-      widget.coachControllerFactory?.call(_onCoachStateChanged) ??
+      widget.coachControllerFactory?.call(
+        _onCoachStateChanged,
+        _coachRecipePrompt,
+      ) ??
       ElevenLabsCoachController(
         agentId: const String.fromEnvironment('ELEVENLABS_AGENT_ID'),
         buildRecipePrompt: _coachRecipePrompt,
         onStateChanged: _onCoachStateChanged,
+        onTranscriptTurn: _recordCoachTurn,
         toolHandlers: {
           'start_timer': (_) => _startTimerFromVoice(),
           'extend_timer': (args) =>
@@ -1690,12 +1698,24 @@ class _CookSessionScreenState extends State<CookSessionScreen>
           'resume_timer': (_) => _resumeTimerFromVoice(),
           'reset_timer': (_) => _resetTimerFromVoice(),
           'next_step': (_) => _moveCookingStep(1, fromVoice: true),
+          'previous_step': (_) => _moveCookingStep(-1, fromVoice: true),
+          'save_context': (args) => _saveCoachContext(args['summary']),
+          'substitute_ingredient': (args) =>
+              _substituteIngredient(args['original'], args['replacement']),
         },
       );
+
+  /// 코치 재시작 때 이어붙일 대화 로그. 요약은 에이전트가 save_context로
+  /// 넘겨주고 앱은 받아 적기만 한다.
+  late final CoachTranscriptRecorder _coachTranscript;
   CookingCoachPhase _coachPhase = CookingCoachPhase.idle;
   String? _coachMessage;
   late final CookingVoiceSessionController _voiceSession;
   static const CookingVoiceRouter _voiceRouter = CookingVoiceRouter();
+
+  /// 재시작 프롬프트에 넣는 직전 대화 턴 수. 오래된 조리 상태는 현재 사실과
+  /// 어긋나므로 전부 넣지 않는다.
+  static const int _coachResumeTurnCount = 8;
   String? _helpAnswer;
   bool _helpLoading = false;
   int _helpRequestVersion = 0;
@@ -1745,6 +1765,7 @@ class _CookSessionScreenState extends State<CookSessionScreen>
   PendingReviewDraft? _completionDraft;
   Future<void> _persistTail = Future<void>.value();
   int _persistVersion = 0;
+  late final Future<void> _coachTranscriptRestored;
 
   bool get _completionLocked => _completionDraft != null;
 
@@ -1769,6 +1790,11 @@ class _CookSessionScreenState extends State<CookSessionScreen>
     _timer.addListener(_onTimerChanged);
     final restored = widget.restoredSession;
     _sessionId = restored?.sessionId ?? generateUuidV4();
+    _coachTranscript = CoachTranscriptRecorder(
+      sessionId: _sessionId,
+      store: widget.coachTranscriptStore ?? const CoachTranscriptStore(),
+    );
+    _coachTranscriptRestored = _coachTranscript.restore();
     _timerSecondsByStep.addAll(
       restored?.timerSecondsByStep ?? const <int, int>{},
     );
@@ -1943,6 +1969,10 @@ class _CookSessionScreenState extends State<CookSessionScreen>
         _coach.isActive) {
       unawaited(_coach.stop());
     }
+    // 강제 종료·배터리 방전 전에 마지막으로 확실히 쓸 수 있는 시점이다.
+    if (state != AppLifecycleState.resumed) {
+      unawaited(_coachTranscript.flush());
+    }
     if (state == AppLifecycleState.resumed) {
       if (_alarmPermissionFlowEndedWhileBackgrounded) {
         _alarmPermissionFlowActive = false;
@@ -1962,6 +1992,9 @@ class _CookSessionScreenState extends State<CookSessionScreen>
     _timer.removeListener(_onTimerChanged);
     _voiceSession.dispose();
     _coach.dispose();
+    // flush가 먼저다 — dispose는 예약된 저장을 끊기만 한다.
+    unawaited(_coachTranscript.flush());
+    _coachTranscript.dispose();
     _speechOutput.dispose();
     unawaited(_cancelScheduledAlarm());
     _timer.dispose();
@@ -2151,14 +2184,7 @@ class _CookSessionScreenState extends State<CookSessionScreen>
         '짧고 명확하게 답하고, 위험한 조리 행동은 바로잡아 주세요.',
       )
       ..writeln('지금 진행하는 요리: ${recipe.title}')
-      ..writeln('재료:');
-    for (final ingredient in recipe.ingredients) {
-      text.writeln(
-        '- ${ingredient.name} ${ingredient.amountLabel}'
-        '${ingredient.isRequired ? '' : ' (선택)'}',
-      );
-    }
-    text.writeln('단계:');
+      ..writeln('단계:');
     for (final cookStep in recipe.steps) {
       text.write('${cookStep.stepIndex}. ${cookStep.instruction}');
       if (cookStep.timerSeconds case final seconds?) {
@@ -2170,8 +2196,11 @@ class _CookSessionScreenState extends State<CookSessionScreen>
       text.writeln();
     }
     final currentStep = recipe.steps[step - 1];
+    text.writeln('[현재 상태 — 이것이 사실이다]');
+    _writeCoachIngredients(text);
     text
       ..writeln('사용자는 지금 $step단계를 진행 중입니다: ${currentStep.instruction}')
+      ..writeln('타이머: ${_coachTimerStateText()}')
       ..writeln(
         '단계가 바뀌면 시스템이 컨텍스트 업데이트로 알려줍니다. '
         '항상 가장 최근에 알려진 단계를 기준으로 안내하세요.',
@@ -2181,9 +2210,125 @@ class _CookSessionScreenState extends State<CookSessionScreen>
         '말고 반드시 해당 도구(start_timer, extend_timer, pause_timer, '
         'resume_timer, reset_timer)를 호출한 뒤, 도구가 돌려준 message를 '
         '읽어주세요. 사용자가 이 단계를 끝냈다고 하거나 다음 단계로 가자고 '
-        '하면 next_step 도구를 호출하세요.',
+        '하면 next_step, 이전 단계로 돌아가자고 하면 previous_step 도구를 '
+        '호출하세요.',
+      )
+      ..writeln(
+        '사용자가 재료를 다른 것으로 바꿔 쓴다고 하면 substitute_ingredient '
+        '도구를 original(원래 재료), replacement(대체 재료) 인자로 '
+        '호출하세요. 도구를 호출해야 위 재료 목록이 갱신됩니다.',
+      )
+      ..writeln(
+        '조리 상황이 정리될 때마다(단계 이동, 재료 대체, 불 세기 조정 등) '
+        '지금까지의 조리 상황을 세 줄 이내로 요약해 save_context 도구를 '
+        'summary 인자로 호출하세요. 이 호출은 사용자에게 알리거나 읽어주지 '
+        '말고 조용히 처리하세요.',
       );
+    _writeCoachResumeContext(text);
     return text.toString();
+  }
+
+  /// 재료 목록은 [현재 상태] 블록 안에 넣는다. 재료 대체는 조리 중에 바뀌는
+  /// 사실이라 대화 로그에만 남겨 두면 "충돌 시 현재 상태가 이긴다" 규칙에
+  /// 밀려, 코치가 원래 재료를 사실로 안내하고 대체는 옛날 얘기로 격하한다.
+  void _writeCoachIngredients(StringBuffer text) {
+    final pending = Map<String, String>.from(_coachTranscript.substitutions);
+    text.writeln('재료 (이번 조리 확정본):');
+    for (final ingredient in widget.recipe.ingredients) {
+      final replacement = pending.remove(ingredient.name);
+      text.writeln(
+        '- ${replacement ?? ingredient.name} ${ingredient.amountLabel}'
+        '${ingredient.isRequired ? '' : ' (선택)'}'
+        '${replacement == null ? '' : ' ← ${ingredient.name} 대체'}',
+      );
+    }
+    // 에이전트가 레시피 표기와 다른 이름으로 부른 대체도 빠뜨리지 않는다.
+    for (final entry in pending.entries) {
+      text.writeln('- ${entry.value} ← ${entry.key} 대체');
+    }
+  }
+
+  /// 재시작 프롬프트의 타이머 줄. 대화 로그에 남은 옛 타이머 언급보다 이
+  /// 값이 항상 우선한다.
+  String _coachTimerStateText() {
+    final snapshot = _timer.snapshot();
+    return switch (snapshot.status) {
+      TimerStatus.idle =>
+        snapshot.effectiveDuration > Duration.zero
+            ? '아직 시작 전, 설정 시간 '
+                  '${_formatDurationForCoach(snapshot.effectiveDuration)}'
+            : '이 단계에는 타이머가 없음',
+      TimerStatus.running =>
+        '실행 중, 남은 시간 ${_formatDurationForCoach(snapshot.remaining)}',
+      TimerStatus.paused =>
+        '일시정지, 남은 시간 ${_formatDurationForCoach(snapshot.remaining)}',
+      TimerStatus.elapsed => '종료됨, 남은 시간 없음',
+    };
+  }
+
+  static String _formatDurationForCoach(Duration duration) {
+    final totalSeconds = duration.inSeconds < 0 ? 0 : duration.inSeconds;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    if (minutes == 0) {
+      return '$seconds초';
+    }
+    return seconds == 0 ? '$minutes분' : '$minutes분 $seconds초';
+  }
+
+  /// 코치를 껐다 켠 경우에만 붙는다. 상태와 대화를 갈라놓고 충돌 시 상태가
+  /// 이긴다고 못 박는다 — 30분 전 "타이머 맞췄어요"가 현재 사실로 읽히는
+  /// 것을 막기 위해서다. SDK 0.6.1에는 서버 쪽 대화 이어받기가 없어 재주입은
+  /// 앱이 한다.
+  void _writeCoachResumeContext(StringBuffer text) {
+    if (_coachTranscript.isEmpty) {
+      return;
+    }
+    text
+      ..writeln()
+      ..writeln('[지난 대화 — 참고용, 위 현재 상태와 어긋나면 위를 따른다]')
+      ..writeln(
+        '이번 조리에서 이미 나눈 대화입니다. 연결이 끊겼다가 이어진 것이니 '
+        '처음부터 인사하지 말고 바로 이어서 도와주세요.',
+      );
+    if (_coachTranscript.summary case final summary?) {
+      text
+        ..writeln('지난 상황 요약:')
+        ..writeln(summary);
+    }
+    final turns = _coachTranscript.recentTurns(_coachResumeTurnCount);
+    if (turns.isNotEmpty) {
+      text.writeln('직전 대화 ${turns.length}턴:');
+      for (final turn in turns) {
+        text.writeln('${turn.isUser ? '사용자' : '코치'}: ${turn.text}');
+      }
+    }
+  }
+
+  void _recordCoachTurn(String text, {required bool isUser}) {
+    _coachTranscript.record(CoachTranscriptTurn(isUser: isUser, text: text));
+  }
+
+  /// 에이전트가 만든 요약을 저장만 한다. 사용자에게 읽어줄 문장이 없으므로
+  /// 빈 응답을 돌려준다 — 대시보드에서 이 도구의 "Wait for response"는 끄는
+  /// 편이 낫다.
+  String _saveCoachContext(Object? summary) {
+    if (summary is String) {
+      _coachTranscript.recordSummary(summary);
+    }
+    return '';
+  }
+
+  /// 재료 대체를 이번 조리의 사실로 확정한다. 저장해 둬야 코치를 껐다 켠
+  /// 뒤에도 재료 목록에 반영된다.
+  String _substituteIngredient(Object? original, Object? replacement) {
+    final from = original is String ? original.trim() : '';
+    final to = replacement is String ? replacement.trim() : '';
+    if (from.isEmpty || to.isEmpty) {
+      return '어떤 재료를 무엇으로 바꿀지 다시 말해주세요.';
+    }
+    _coachTranscript.recordSubstitution(from, to);
+    return '$from 대신 $to로 진행할게요.';
   }
 
   /// 마이크는 하나뿐이다 — 코치를 켜기 전에 명령 STT와 TTS를 먼저 내리고,
@@ -2191,6 +2336,9 @@ class _CookSessionScreenState extends State<CookSessionScreen>
   void _toggleCoach() {
     if (_coach.isActive) {
       unawaited(_coach.stop());
+      // 세션이 끝나면 더 들어올 발화가 없다. 다음 재시작이 읽을 수 있게
+      // 밀린 저장을 바로 반영한다.
+      unawaited(_coachTranscript.flush());
       return;
     }
     _cancelPendingSpeechStarts();
@@ -2199,7 +2347,17 @@ class _CookSessionScreenState extends State<CookSessionScreen>
       unawaited(_deactivateSpeechInput(forceStop: true));
     }
     unawaited(_stopSpeechOutput(completesStartup: true));
-    unawaited(_coach.start(widget.recipe.id));
+    unawaited(_startCoach());
+  }
+
+  /// 저장된 대화 로그를 먼저 읽는다 — 프롬프트는 세션 시작 시점에 한 번만
+  /// 만들어지므로, 복원 전에 붙으면 지난 대화가 통째로 빠진다.
+  Future<void> _startCoach() async {
+    await _coachTranscriptRestored;
+    if (_disposed || !mounted) {
+      return;
+    }
+    await _coach.start(widget.recipe.id);
   }
 
   void _onSpeechStateChanged(_CookSpeechPhase phase, String? message) {
@@ -2526,6 +2684,8 @@ class _CookSessionScreenState extends State<CookSessionScreen>
       // 늦게 끝나 세션을 되살리지 않도록, 이 화면의 저장 큐를 먼저 비운다.
       await _persistTail;
       await _store.clear();
+      // 대화 전사본이 평문으로 남는다. 조리가 끝나면 반드시 지운다.
+      await _coachTranscript.clear();
     } on Object {
       // pending draft 저장이 성공했으므로 active session 정리 실패는 전환을
       // 막지 않는다. Home은 pending review를 항상 우선한다.
@@ -2554,6 +2714,8 @@ class _CookSessionScreenState extends State<CookSessionScreen>
     _cancelPendingSpeechStarts();
     _stopSpeechOutputForSessionEnd();
     _voiceSession.complete();
+    // 이어서 조리하기로 돌아올 수 있으므로 지우지 않고 저장만 한다.
+    unawaited(_coachTranscript.flush());
     setState(() => _allowSessionPop = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -2905,7 +3067,6 @@ class _CookSessionScreenState extends State<CookSessionScreen>
       speechBody: _speechBody,
       speechButtonLabel: _speechButtonLabel,
       coachPhase: _coachPhase,
-      coachActive: _coach.isActive,
       coachMessage: _coachMessage,
       helpLoading: _helpLoading,
       helpAnswer: _helpAnswer,

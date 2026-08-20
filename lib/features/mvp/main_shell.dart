@@ -377,40 +377,22 @@ class _HomeScreenState extends State<HomeScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: space.screenPadding,
             children: [
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '셰프님 👋',
-                          style: type.body.copyWith(
-                            color: color.slate,
-                            fontWeight: type.medium,
-                          ),
-                        ),
-                        SizedBox(height: space.hairGap),
-                        Text(
-                          _greeting,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.titleLarge,
-                        ),
-                      ],
+                  Text(
+                    '셰프님 👋',
+                    style: type.body.copyWith(
+                      color: color.slate,
+                      fontWeight: type.medium,
                     ),
                   ),
-                  PressableScale(
-                    child: Container(
-                      width: space.avatarSize,
-                      height: space.avatarSize,
-                      decoration: BoxDecoration(
-                        color: color.accentSoft,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: color.line),
-                      ),
-                      child: Icon(Icons.person_rounded, color: color.accent),
-                    ),
+                  SizedBox(height: space.hairGap),
+                  Text(
+                    _greeting,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.titleLarge,
                   ),
                 ],
               ),
@@ -435,6 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
                 if (_resumableSession
                     case final PersistedCookingSession session) ...[
+                  SizedBox(height: space.sectionGap),
                   _ResumeCookingCard(
                     session: session,
                     stepCount:

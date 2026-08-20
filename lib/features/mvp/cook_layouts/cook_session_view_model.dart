@@ -33,7 +33,6 @@ class CookSessionViewModel {
     required this.speechBody,
     required this.speechButtonLabel,
     required this.coachPhase,
-    required this.coachActive,
     required this.coachMessage,
     required this.helpLoading,
     required this.helpAnswer,
@@ -79,9 +78,6 @@ class CookSessionViewModel {
   final String speechButtonLabel;
 
   final CookingCoachPhase coachPhase;
-
-  /// 코치 엔진이 실제로 살아 있는지. [coachPhase]와 잠깐 어긋날 수 있어 따로 받는다.
-  final bool coachActive;
   final String? coachMessage;
 
   final bool helpLoading;
@@ -120,8 +116,10 @@ class CookSessionViewModel {
     return finishing ? '완료 저장 중' : '조리 완료';
   }
 
+  bool get coachActive => coachPhase == CookingCoachPhase.live;
+
   String get coachButtonLabel => switch (coachPhase) {
-    CookingCoachPhase.idle => 'AI 코치',
+    CookingCoachPhase.idle => 'AI 코치 켜기',
     CookingCoachPhase.connecting => '연결 중…',
     CookingCoachPhase.live => '코치 끄기',
     CookingCoachPhase.stopping => '끄는 중…',
@@ -140,8 +138,11 @@ class CookSessionViewModel {
   bool get canResetTimer =>
       !locked && hasTimer && timer.status != TimerStatus.idle;
 
+  /// 코치가 살아 있으면 STT가 코치 음성을 받아 적으므로 말하기를 함께 잠근다.
   bool get canToggleSpeech =>
-      !locked && speechPhase != CookingVoiceSpeechPhase.stopping;
+      !locked &&
+      !coachActive &&
+      speechPhase != CookingVoiceSpeechPhase.stopping;
 
   bool get canAskHelp => !locked && !helpRequestInFlight;
 

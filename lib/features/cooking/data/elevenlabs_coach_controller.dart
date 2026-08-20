@@ -12,6 +12,10 @@ import '../application/cooking_coach_controller.dart';
 /// 읽어줄 한국어 문장으로 반환하면 도구 응답으로 에이전트에 전달된다.
 typedef CoachToolHandler = String Function(Map<String, dynamic> args);
 
+/// 세션에서 확정된 발화 한 턴. 사용자 발화는 SDK가 전사한 텍스트다.
+typedef CoachTranscriptHandler =
+    void Function(String text, {required bool isUser});
+
 /// 레시피 컨텍스트는 dynamic variable(`recipe_context`)로 넣는다. 대시보드
 /// 에이전트의 시스템 프롬프트가 `{{recipe_context}}`여야 한다(docs 참고).
 final class ElevenLabsCoachController implements CookingCoachEngine {
@@ -19,6 +23,7 @@ final class ElevenLabsCoachController implements CookingCoachEngine {
     required this.agentId,
     required this.buildRecipePrompt,
     required this.onStateChanged,
+    this.onTranscriptTurn,
     this.toolHandlers = const {},
     ConversationClient Function(
       ConversationCallbacks callbacks,
@@ -37,6 +42,10 @@ final class ElevenLabsCoachController implements CookingCoachEngine {
   /// 이번 요리의 재료·단계 전문을 담은 시스템 프롬프트를 만든다.
   final String Function() buildRecipePrompt;
   final CookingCoachStateHandler onStateChanged;
+
+  /// 세션이 살아 있는 동안의 발화를 화면에 넘긴다. 코치를 껐다 켜면 SDK
+  /// 세션이 0턴에서 시작하므로, 이어붙일 대화를 앱이 들고 있어야 한다.
+  final CoachTranscriptHandler? onTranscriptTurn;
 
   /// 대시보드에 정의한 client tool 이름 → 실행부. 이름이 정확히 일치해야
   /// 호출이 도착한다(docs의 대시보드 설정 참고).
@@ -76,6 +85,11 @@ final class ElevenLabsCoachController implements CookingCoachEngine {
         onDisconnect: (details) {
           if (_isCurrent(generation) && _phase != CookingCoachPhase.stopping) {
             unawaited(_teardown(generation, message: '코치 연결이 끝났어요.'));
+          }
+        },
+        onMessage: ({required message, required source}) {
+          if (_isCurrent(generation)) {
+            onTranscriptTurn?.call(message, isUser: source == Role.user);
           }
         },
         onError: (message, [context]) {

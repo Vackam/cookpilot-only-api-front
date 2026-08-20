@@ -71,6 +71,9 @@ client tool로 프론트에 위임한다 — 예전 STT 라우터가 로컬에�
 대시보드에서 위 6개를 **Client tool**로 등록해야 하며(이름 정확히 일치,
 "Wait for response" 켬), 등록 전에는 에이전트가 말로만 응답한다.
 
+이후 `previous_step`, `save_context`, `substitute_ingredient`가 추가됐다 —
+`docs/feat-coach-transcript-#1.md` 참고.
+
 세션 컨텍스트 동기화:
 - 연결 시점 프롬프트에 현재 단계 번호·안내를 포함한다.
 - 조리 중 단계가 바뀌면(버튼·STT·next_step 모두) `contextual_update`로
