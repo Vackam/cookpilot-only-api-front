@@ -74,6 +74,25 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # 런처 아이콘 생성기. 소스 한 장(assets/icon/app_icon.png)에서 안드로이드
+  # mipmap·iOS appiconset·웹 파비콘을 다시 찍는다. 아이콘을 바꿀 때만 돌린다:
+  #   dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.4
+
+# 런처 아이콘 설정. 생성물(android res mipmap, ios appiconset, web icons)은
+# 커밋한다 — 빌드 때마다 생성기를 돌리지 않는다.
+flutter_launcher_icons:
+  image_path: assets/icon/app_icon.png
+  android: true
+  ios: true
+  # iOS는 알파 채널이 있는 아이콘을 거부한다. 사진이라 투명 영역은 없지만
+  # 저장 과정에서 채널이 남을 수 있어 배경으로 눌러 없앤다.
+  remove_alpha_ios: true
+  web:
+    generate: true
+    background_color: '#000000'
+    theme_color: '#000000'
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
