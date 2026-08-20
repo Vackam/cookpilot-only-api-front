@@ -276,6 +276,8 @@ class _PhotoSizeBadgeState extends State<_PhotoSizeBadge> {
     ).resolve(createLocalImageConfiguration(context));
     // 이미 캐시된 사진은 콜백이 그 자리에서 동기 호출된다. 빌드 중 setState가
     // 되지 않도록 다음 프레임으로 미룬다.
+    // 사진을 못 불러오면 배지는 '원본 ?'로 남는다. onError를 비워 두면 이 스트림에
+    // 에러 리스너가 하나도 없어서 로드 실패가 전역 오류로 올라간다.
     final listener = ImageStreamListener((info, _) {
       final size = Size(
         info.image.width.toDouble(),
@@ -286,7 +288,7 @@ class _PhotoSizeBadgeState extends State<_PhotoSizeBadge> {
           setState(() => _source = size);
         }
       });
-    });
+    }, onError: (_, _) {});
     stream.addListener(listener);
     _stream = stream;
     _listener = listener;
