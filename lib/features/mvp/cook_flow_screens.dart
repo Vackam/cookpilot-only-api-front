@@ -87,6 +87,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final canCook = recipe.steps.isNotEmpty;
+    final tagLabels = recipe.tagLabels;
 
     final color = context.color;
     final type = context.type;
@@ -162,10 +163,21 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       ],
                     ),
                     SizedBox(height: space.tightGap),
-                    Text(
-                      recipe.description,
-                      style: type.body.copyWith(color: color.slate),
-                    ),
+                    if (recipe.description.isNotEmpty)
+                      Text(
+                        recipe.description,
+                        style: type.body.copyWith(color: color.slate),
+                      ),
+                    if (tagLabels.isNotEmpty) ...[
+                      SizedBox(height: space.itemGap),
+                      Wrap(
+                        spacing: space.tightGap,
+                        runSpacing: space.tightGap,
+                        children: [
+                          for (final label in tagLabels) TagChip(label),
+                        ],
+                      ),
+                    ],
                     SizedBox(height: space.sectionGap),
                     // 핵심 스탯 타일 3개
                     Row(

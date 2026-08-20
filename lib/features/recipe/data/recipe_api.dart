@@ -19,6 +19,9 @@ class RecipeSummary {
     this.lastCookedAt,
     this.lastRating,
     this.favoritedAt,
+    this.cookingMethod,
+    this.dishType,
+    this.hashtags = const [],
   });
 
   factory RecipeSummary.fromJson(Map<String, dynamic> json) {
@@ -33,6 +36,9 @@ class RecipeSummary {
       lastCookedAt: _optionalDateTime(json['lastCookedAt']),
       lastRating: (json['lastRating'] as num?)?.toInt(),
       favoritedAt: _optionalDateTime(json['favoritedAt']),
+      cookingMethod: json['cookingMethod'] as String?,
+      dishType: json['dishType'] as String?,
+      hashtags: _stringList(json['hashtags']),
     );
   }
 
@@ -46,6 +52,17 @@ class RecipeSummary {
   final DateTime? lastCookedAt;
   final int? lastRating;
   final DateTime? favoritedAt;
+
+  /// 끓이기·굽기·볶기·찌기·튀기기 중 하나. 서버가 '기타'는 null로 준다.
+  final String? cookingMethod;
+
+  /// 반찬·일품·후식·밥·국·찌개 중 하나. 서버가 '기타'는 null로 준다.
+  final String? dishType;
+
+  final List<String> hashtags;
+
+  /// 칩으로 그릴 순서. 분류가 앞, 해시태그가 뒤.
+  List<String> get tagLabels => [?dishType, ?cookingMethod, ...hashtags];
 }
 
 class RecipePage {
@@ -167,6 +184,12 @@ class PersonalRecipeVersionDetail {
   final DateTime createdAt;
   final List<Ingredient> ingredients;
   final List<CookStep> steps;
+}
+
+/// 서버가 태그를 안 실어 주면(구버전) 빈 목록으로 떨어진다.
+List<String> _stringList(Object? value) {
+  if (value is! List) return const [];
+  return value.whereType<String>().toList(growable: false);
 }
 
 class RecipeApiException implements Exception {
@@ -334,6 +357,9 @@ class RecipeRepository {
       hasPersonalVersion: summary.hasPersonalVersion,
       latestPersonalVersionId: summary.latestPersonalVersionId,
       favorite: summary.favorite,
+      cookingMethod: decoded['cookingMethod'] as String?,
+      dishType: decoded['dishType'] as String?,
+      hashtags: _stringList(decoded['hashtags']),
     );
   }
 

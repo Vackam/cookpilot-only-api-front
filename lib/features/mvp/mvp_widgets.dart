@@ -293,6 +293,35 @@ class ImageLabelChip extends StatelessWidget {
   }
 }
 
+/// 레시피 분류·해시태그처럼 여러 개가 나란히 놓이는 조용한 칩.
+///
+/// [ImageLabelChip]은 포인트 색이라 한 화면에 하나만 놓을 때 쓴다. 태그는 개수가
+/// 많아서 그 색으로 깔면 제목을 이긴다.
+class TagChip extends StatelessWidget {
+  const TagChip(this.label, {super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = context.color;
+    final type = context.type;
+    final space = context.space;
+    return Container(
+      padding: space.chipInsets,
+      decoration: BoxDecoration(
+        color: color.wash,
+        borderRadius: BorderRadius.circular(space.radiusPill),
+        border: Border.all(color: color.line),
+      ),
+      child: Text(
+        label,
+        style: type.tiny.copyWith(color: color.slate, fontWeight: type.medium),
+      ),
+    );
+  }
+}
+
 /// 검색 결과·목록용 가로형 타일. 실제 음식 썸네일 포함.
 class FoodTile extends StatelessWidget {
   const FoodTile({

@@ -151,6 +151,78 @@ void main() {
     );
   });
 
+  test('목록 응답의 태그 필드를 읽고 칩 순서를 요리종류·조리방법·해시태그로 준다', () async {
+    final repository = RecipeRepository(
+      baseUrl: baseUrl,
+      client: MockClient(
+        (_) async => _jsonResponse('''
+          {
+            "items": [
+              {
+                "id": "$recipeId",
+                "title": "LA 갈비구이",
+                "description": "월계수잎과 통후추 등을 사용했어요.",
+                "imageUrl": null,
+                "hasPersonalVersion": false,
+                "latestPersonalVersionId": null,
+                "favorite": false,
+                "cookingMethod": "굽기",
+                "dishType": "반찬",
+                "hashtags": ["저염간장"]
+              }
+            ],
+            "page": 0,
+            "size": 9,
+            "totalElements": 1,
+            "hasNext": false
+          }
+        '''),
+      ),
+    );
+
+    final summary = (await repository.search()).items.single;
+
+    expect(summary.cookingMethod, '굽기');
+    expect(summary.dishType, '반찬');
+    expect(summary.hashtags, ['저염간장']);
+    expect(summary.tagLabels, ['반찬', '굽기', '저염간장']);
+  });
+
+  test('태그 필드가 없거나 비어 있으면 칩을 만들지 않는다', () async {
+    // 서버가 '기타'는 null로 준다. 구버전 서버는 필드 자체를 안 싣는다.
+    final repository = RecipeRepository(
+      baseUrl: baseUrl,
+      client: MockClient(
+        (_) async => _jsonResponse('''
+          {
+            "items": [
+              {
+                "id": "$recipeId",
+                "title": "된장찌개",
+                "description": "두부와 애호박을 넣은 기본 된장찌개",
+                "imageUrl": null,
+                "hasPersonalVersion": false,
+                "latestPersonalVersionId": null,
+                "favorite": false,
+                "cookingMethod": null,
+                "dishType": null
+              }
+            ],
+            "page": 0,
+            "size": 9,
+            "totalElements": 1,
+            "hasNext": false
+          }
+        '''),
+      ),
+    );
+
+    final summary = (await repository.search()).items.single;
+
+    expect(summary.hashtags, isEmpty);
+    expect(summary.tagLabels, isEmpty);
+  });
+
   test('상세 응답에서 재료와 조리 단계를 화면 모델로 변환한다', () async {
     const summary = RecipeSummary(
       id: recipeId,

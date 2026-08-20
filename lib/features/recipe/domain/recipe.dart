@@ -8,6 +8,9 @@ class Recipe {
     required this.ingredients,
     required this.steps,
     required this.hasPersonalVersion,
+    this.cookingMethod,
+    this.dishType,
+    this.hashtags = const [],
     this.latestPersonalVersionId,
     this.favorite = false,
   });
@@ -22,6 +25,17 @@ class Recipe {
   final bool hasPersonalVersion;
   final String? latestPersonalVersionId;
   final bool favorite;
+
+  /// 끓이기·굽기·볶기·찌기·튀기기 중 하나. 서버가 '기타'는 null로 준다.
+  final String? cookingMethod;
+
+  /// 반찬·일품·후식·밥·국·찌개 중 하나. 서버가 '기타'는 null로 준다.
+  final String? dishType;
+
+  final List<String> hashtags;
+
+  /// 칩으로 그릴 순서. 분류가 앞, 해시태그가 뒤.
+  List<String> get tagLabels => [?dishType, ?cookingMethod, ...hashtags];
 
   int get timerMinutes {
     final seconds = steps.fold<int>(
