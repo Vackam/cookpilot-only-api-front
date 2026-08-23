@@ -105,6 +105,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/recipes/ramen/steps/boiling-pot.jpg
+    - assets/logo/cooklog-wordmark.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

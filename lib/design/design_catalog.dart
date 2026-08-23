@@ -7,6 +7,7 @@ import 'design_spec.dart';
 /// 새 안을 시험하려면 여기에 [DesignSpec]을 하나 더 만들어 넣기만 하면 된다.
 /// 화면 코드는 건드리지 않는다.
 const designCatalog = <DesignSpec>[
+  whiteCatalogSpec,
   warmKitchenSpec,
   midnightPrepSpec,
   crispPaperSpec,
@@ -14,7 +15,114 @@ const designCatalog = <DesignSpec>[
 ];
 
 /// 앱이 켜질 때와 테마 없이 위젯만 띄우는 테스트에서 쓰이는 기본 안.
-const defaultDesignSpec = warmKitchenSpec;
+const defaultDesignSpec = whiteCatalogSpec;
+
+// ---------------------------------------------------------------------------
+// 0. 화이트 카탈로그 — 넷플릭스식 카드 홈(메인 저장소 PR #63)과 같은 팔레트
+// ---------------------------------------------------------------------------
+
+/// 흰 바탕 + 버밀리언 주황 포인트. 사진을 카드로 늘어놓는 화면에서는 바탕에
+/// 색이 섞여 있으면 음식 사진과 싸운다 — 흰 바탕이 사진을 앞으로 낸다.
+/// 중성색은 아주 살짝 차갑게 잡는다. 크림 계열을 남기면 흰 바탕이 탁해 보인다.
+const whiteCatalogSpec = DesignSpec(
+  id: 'white-catalog',
+  label: '화이트 카탈로그',
+  palette: DesignPalette(
+    brightness: Brightness.light,
+    ink: Color(0xFF17130F),
+    slate: Color(0xFF55504B),
+    muted: Color(0xFF8D867F),
+    surface: Color(0xFFFFFFFF),
+    card: Color(0xFFFFFFFF),
+    line: Color(0xFFE4E2E4),
+    accent: Color(0xFFF04E23),
+    accentSoft: Color(0xFFFDEDE8),
+    onAccent: Color(0xFFFFFFFF),
+    wash: Color(0xFFF4F4F6),
+    success: Color(0xFF5C8A4E),
+    shadow: Color(0x1A17130F),
+    inverseSurface: Color(0xFF17130F),
+    onInverse: Color(0xFFFFFFFF),
+    onInverseMuted: Color(0xB3FFFFFF),
+    inverseLine: Color(0x33FFFFFF),
+    scrimStrong: Color(0xCC17130F),
+    scrimSoft: Color(0x6617130F),
+    overlaySurface: Color(0xD9FFFFFF),
+    // 사진 플레이스홀더만 웜 톤을 남긴다 — 음식 자리라는 힌트다.
+    placeholderFrom: Color(0xFFFBEBD9),
+    placeholderTo: Color(0xFFF3D8BC),
+    placeholderIcon: Color(0xFFC08A5A),
+  ),
+  type: DesignTypography(
+    fontFamily: 'Pretendard',
+    tightTracking: -0.6,
+    bodyHeight: 1.5,
+    displayHeight: 1.15,
+    regular: FontWeight.w400,
+    medium: FontWeight.w500,
+    semiBold: FontWeight.w600,
+    bold: FontWeight.w700,
+    extraBold: FontWeight.w800,
+    black: FontWeight.w900,
+    microSize: 9,
+    tinySize: 11,
+    smallSize: 12,
+    captionSize: 13,
+    bodySize: 14,
+    labelSize: 15,
+    bodyLargeSize: 16,
+    leadSize: 18,
+    titleSize: 20,
+    titleLargeSize: 23,
+    heroTitleSize: 26,
+    headlineSize: 28,
+    headlineLargeSize: 32,
+    numericSize: 44,
+  ),
+  density: DesignDensity(
+    hairGap: 3,
+    tightGap: 6,
+    snugGap: 8,
+    itemGap: 10,
+    blockGap: 12,
+    sectionGap: 18,
+    majorGap: 24,
+    sectionBreak: 48,
+    screenPaddingX: 20,
+    screenPaddingTop: 16,
+    screenPaddingBottom: 24,
+    cardPadding: 16,
+    chipPaddingX: 8,
+    chipPaddingY: 4,
+    radiusSm: 8,
+    radiusMd: 12,
+    radiusLg: 14,
+    radiusXl: 20,
+    radiusPill: 999,
+    controlHeight: 56,
+    compactControlHeight: 48,
+    tapTarget: 48,
+    contentMaxWidth: 480,
+    iconSm: 16,
+    iconMd: 18,
+    iconLg: 22,
+    iconXl: 32,
+    iconHero: 40,
+    thumbSize: 76,
+    brandMarkSize: 64,
+    avatarSize: 44,
+    avatarLargeSize: 54,
+    shadowBlur: 22,
+    shadowLift: 8,
+    softShadowBlur: 14,
+    softShadowLift: 4,
+    overlayButtonSize: 38,
+    cookControlSize: 96,
+    heroImageHeight: 300,
+    stepImageHeight: 210,
+    photoTileSize: 88,
+  ),
+);
 
 // ---------------------------------------------------------------------------
 // 1. 따뜻한 키친 — 지금까지 써 온 디자인

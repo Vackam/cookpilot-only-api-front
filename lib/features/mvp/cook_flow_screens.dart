@@ -3885,6 +3885,8 @@ class _ReviewScreenState extends State<ReviewScreen>
         ? '개인 버전 기반'
         : '원본 기반';
     final screen = PageShell(
+      // 조리를 마치고 넘어온 화면이라는 신호를 색으로 준다.
+      accentHeader: true,
       title: '조리 후 리뷰',
       children: [
         Text(

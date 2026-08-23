@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -11,8 +12,10 @@ import '../recipe/data/recipe_api.dart';
 import '../recipe/domain/recipe.dart';
 import '../review/application/pending_review_draft_store.dart';
 import '../review/data/review_api.dart';
+import 'account_screen.dart';
 import 'cook_flow_screens.dart';
 import 'mvp_widgets.dart';
+import 'shell_tab.dart';
 
 final _recipeRepository = RecipeRepository();
 
@@ -35,18 +38,41 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  int index = 0;
+  @override
+  void initState() {
+    super.initState();
+    shellTabIndex.addListener(_onTabChanged);
+  }
+
+  @override
+  void dispose() {
+    shellTabIndex.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (mounted) setState(() {});
+  }
+
+  int get index => shellTabIndex.value;
+
+  void _select(int value) => shellTabIndex.value = value;
 
   @override
   Widget build(BuildContext context) {
-    const pages = [HomeScreen(), SearchScreen(), MemoryScreen()];
+    const pages = [
+      HomeScreen(),
+      SearchScreen(),
+      MemoryScreen(),
+      AccountScreen(),
+    ];
 
     return Scaffold(
       body: pages[index],
       bottomNavigationBar: NavigationBar(
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         selectedIndex: index,
-        onDestinationSelected: (value) => setState(() => index = value),
+        onDestinationSelected: _select,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -59,9 +85,14 @@ class _MainShellState extends State<MainShell> {
             label: '검색',
           ),
           NavigationDestination(
-            icon: Icon(Icons.bookmark_outline_rounded),
-            selectedIcon: Icon(Icons.bookmark_rounded),
-            label: '메모리',
+            icon: Icon(Icons.calendar_today_outlined),
+            selectedIcon: Icon(Icons.calendar_today_rounded),
+            label: '기록',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
+            label: '내 정보',
           ),
         ],
       ),
@@ -105,6 +136,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _resumingCooking = false;
   var _openingPendingReview = false;
 
+  /// 히어로 저장 버튼의 화면상 상태. null 이면 레시피가 들고 온 값을 쓴다.
+  bool? _heroFavorite;
+  bool _savingHeroFavorite = false;
+
   @override
   void initState() {
     super.initState();
@@ -115,13 +150,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _cookingSessionLoader = widget.cookingSessionLoader ?? _sessionStore.load;
     _catalog = _loadCatalog();
     unawaited(_refreshRecovery(markLoading: false));
-  }
-
-  String get _greeting {
-    final hour = DateTime.now().hour;
-    if (hour < 11) return '좋은 아침이에요';
-    if (hour < 17) return '점심은 챙기셨나요?';
-    return '오늘 저녁, 뭐 해먹을까요?';
   }
 
   Future<_HomeCatalog> _loadCatalog() async {
@@ -143,7 +171,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     Recipe? featured;
     try {
-      featured = await _homeRecipeRepository.findById(summaries.first);
+      // 오늘의 추천은 매번 다르게 고른다. 첫 건으로 고정하면 카탈로그가 커도
+      // 홈을 열 때마다 같은 요리가 나온다.
+      featured = await _homeRecipeRepository.findById(
+        summaries[Random().nextInt(summaries.length)],
+      );
     } on Object {
       // 추천 상세가 실패해도 조회 가능한 전체 목록은 유지한다.
       featured = null;
@@ -158,6 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _retry() {
     setState(() {
+      _heroFavorite = null;
       _catalog = _loadCatalog();
     });
     unawaited(_refreshRecovery());
@@ -165,6 +198,69 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _refreshHome() {
     _retry();
+  }
+
+  /// 카드에서 레시피 상세로. 돌아오면 즐겨찾기·개인 버전 변화가 반영되도록 다시 읽는다.
+  void _openRecipe(RecipeSummary summary) {
+    unawaited(
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute<void>(
+              builder: (_) => _RecipeDetailLoader(summary: summary),
+            ),
+          )
+          .then((_) => _refreshHome()),
+    );
+  }
+
+  /// 오늘의 추천은 이미 전체 레시피를 들고 있어 다시 불러올 필요가 없다.
+  void _openFeatured(Recipe recipe) {
+    unawaited(
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute<void>(
+              builder: (_) => RecipeDetailScreen(recipe: recipe),
+            ),
+          )
+          .then((_) => _refreshHome()),
+    );
+  }
+
+  /// 카드 아래 캡션. 데이터가 없으면 빈 줄을 만들지 않고 비운다.
+  String? _cookedOn(RecipeSummary recipe) {
+    final cooked = recipe.lastCookedAt;
+    if (cooked == null) return null;
+    return '${cooked.month}월 ${cooked.day}일';
+  }
+
+  String? _ratingOf(RecipeSummary recipe) {
+    final rating = recipe.lastRating;
+    return rating == null ? null : '★ $rating';
+  }
+
+  /// 히어로 저장 버튼. 상세 화면과 같은 즐겨찾기 토글이다.
+  Future<void> _toggleHeroFavorite(Recipe recipe) async {
+    if (_savingHeroFavorite) return;
+    final saved = _heroFavorite ?? recipe.favorite;
+    setState(() => _savingHeroFavorite = true);
+    try {
+      if (saved) {
+        await _homeRecipeRepository.removeFavorite(recipe.id);
+      } else {
+        await _homeRecipeRepository.addFavorite(recipe.id);
+      }
+      if (!mounted) return;
+      setState(() => _heroFavorite = !saved);
+    } on RecipeApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() => _savingHeroFavorite = false);
+      }
+    }
   }
 
   bool _isCurrentRecovery(int generation) {
@@ -358,16 +454,55 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _refreshAll() async {
     final nextCatalog = _loadCatalog();
     setState(() {
+      _heroFavorite = null;
       _catalog = nextCatalog;
     });
     final nextRecovery = _refreshRecovery();
     await Future.wait([nextCatalog, nextRecovery]);
   }
 
+  /// 조리 이어하기 / 후기 이어쓰기 안내. 히어로 아래에 두는 자리라
+  /// 카탈로그 로딩 상태와 무관하게 같은 위젯을 쓴다.
+  Widget _recoveryBlock() {
+    final space = context.space;
+    if (_recoveryLoading) return const _HomeRecoveryLoadingCard();
+    if (_recoveryError != null) {
+      return _HomeRecoveryErrorCard(
+        onRetry: () => unawaited(_refreshRecovery()),
+      );
+    }
+    // 후기 초안과 이어서 할 조리는 서로를 가리지 않는다. 후기를 쓸지는
+    // 사용자가 정할 일이라, 조리 진입을 막는 대신 여기서 나란히 알린다.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_pendingReviewDraft case final PendingReviewDraft draft)
+          Padding(
+            padding: EdgeInsets.only(bottom: space.itemGap),
+            child: _ResumeReviewCard(
+              draft: draft,
+              onTap: () => unawaited(_openPendingReview()),
+            ),
+          ),
+        if (_resumableSession case final PersistedCookingSession session)
+          Padding(
+            padding: EdgeInsets.only(bottom: space.itemGap),
+            child: _ResumeCookingCard(
+              session: session,
+              stepCount:
+                  _resumableRecipe?.steps.length ?? session.stepIndex + 1,
+              opening: _resumingCooking,
+              onTap: _resumingCooking
+                  ? null
+                  : () => unawaited(_resumeCooking()),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final color = context.color;
-    final type = context.type;
     final space = context.space;
     return Scaffold(
       body: SafeArea(
@@ -375,134 +510,149 @@ class _HomeScreenState extends State<HomeScreen> {
           onRefresh: _refreshAll,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: space.screenPadding,
+            // 히어로가 화면 끝까지 닿아야 해서 목록에는 좌우 여백을 주지 않는다.
+            // 여백은 _Gutter 로 섹션마다 따로 준다.
+            padding: EdgeInsets.only(
+              top: space.screenPaddingTop,
+              bottom: space.screenPaddingBottom,
+            ),
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '셰프님 👋',
-                    style: type.body.copyWith(
-                      color: color.slate,
-                      fontWeight: type.medium,
-                    ),
+              _Gutter(
+                child: SizedBox(
+                  // 다른 탭의 로고 버튼(34 + 위아래 8)과 같은 높이로 맞춘다.
+                  height: 50,
+                  child: Row(
+                    children: [
+                      // 인사말 대신 워드마크만 둔다. 넷플릭스 좌상단과 같은 자리다.
+                      // 검색은 하단 탭에 있으므로 여기에 또 두지 않는다.
+                      Image.asset(
+                        'assets/logo/cooklog-wordmark.png',
+                        height: 34,
+                        fit: BoxFit.contain,
+                      ),
+                      const Spacer(),
+                    ],
                   ),
-                  SizedBox(height: space.hairGap),
-                  Text(
-                    _greeting,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.titleLarge,
-                  ),
-                ],
-              ),
-              if (_recoveryLoading) ...[
-                SizedBox(height: space.sectionGap),
-                const _HomeRecoveryLoadingCard(),
-              ] else if (_recoveryError != null) ...[
-                SizedBox(height: space.sectionGap),
-                _HomeRecoveryErrorCard(
-                  onRetry: () => unawaited(_refreshRecovery()),
                 ),
-              ] else ...[
-                // 후기 초안과 이어서 할 조리는 서로를 가리지 않는다. 후기를 쓸지는
-                // 사용자가 정할 일이라, 조리 진입을 막는 대신 여기서 나란히 알린다.
-                if (_pendingReviewDraft
-                    case final PendingReviewDraft draft) ...[
-                  SizedBox(height: space.sectionGap),
-                  _ResumeReviewCard(
-                    draft: draft,
-                    onTap: () => unawaited(_openPendingReview()),
-                  ),
-                ],
-                if (_resumableSession
-                    case final PersistedCookingSession session) ...[
-                  SizedBox(height: space.sectionGap),
-                  _ResumeCookingCard(
-                    session: session,
-                    stepCount:
-                        _resumableRecipe?.steps.length ?? session.stepIndex + 1,
-                    opening: _resumingCooking,
-                    onTap: _resumingCooking
-                        ? null
-                        : () => unawaited(_resumeCooking()),
-                  ),
-                ],
-              ],
+              ),
               FutureBuilder<_HomeCatalog>(
                 future: _catalog,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState != ConnectionState.done) {
-                    return const _RecipeLoading();
+                    return _Gutter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: space.sectionGap),
+                          _recoveryBlock(),
+                          const _RecipeLoading(),
+                        ],
+                      ),
+                    );
                   }
                   if (snapshot.hasError) {
-                    return _RecipeLoadError(onRetry: _retry);
+                    return _Gutter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: space.sectionGap),
+                          _recoveryBlock(),
+                          _RecipeLoadError(onRetry: _retry),
+                        ],
+                      ),
+                    );
                   }
 
                   final catalog = snapshot.data;
                   if (catalog == null || catalog.summaries.isEmpty) {
-                    return const _RecipeEmpty(message: '등록된 레시피가 아직 없어요.');
+                    return _Gutter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: space.sectionGap),
+                          _recoveryBlock(),
+                          const _RecipeEmpty(message: '등록된 레시피가 아직 없어요.'),
+                        ],
+                      ),
+                    );
                   }
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (catalog.featured != null) ...[
-                        const SectionTitle('오늘의 메뉴'),
                         RecipeHeroCard(
                           recipe: catalog.featured!,
-                          onTap: () => Navigator.of(context)
-                              .push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => RecipeDetailScreen(
-                                    recipe: catalog.featured!,
-                                  ),
-                                ),
-                              )
-                              .then((_) => _refreshHome()),
+                          favorite: _heroFavorite,
+                          saving: _savingHeroFavorite,
+                          onTap: () => _openFeatured(catalog.featured!),
+                          onStart: () => _openFeatured(catalog.featured!),
+                          onSave: () => unawaited(
+                            _toggleHeroFavorite(catalog.featured!),
+                          ),
                         ),
+                        SizedBox(height: space.sectionGap),
                       ],
-                      const SectionTitle('최근 조리'),
-                      if (catalog.recent.isEmpty)
-                        const _HomeDataEmpty(
-                          icon: Icons.history_rounded,
-                          title: '아직 최근 조리 데이터가 없어요',
-                          body: '첫 요리를 마치고 후기를 남기면 여기에 표시돼요.',
+                      // 이어하기 안내는 히어로 바로 아래다. 화면 맨 위를 차지하면
+                      // 카탈로그가 아니라 알림창처럼 보인다.
+                      _Gutter(child: _recoveryBlock()),
+                      if (catalog.recent.isNotEmpty)
+                        _Gutter(
+                          child: RecipeRail(
+                            title: '내가 만든 요리',
+                            trailing: '전체 ${catalog.recent.length} →',
+                            hasMeta: true,
+                            children: [
+                              for (final recipe in catalog.recent)
+                                RecipePosterCard(
+                                  title: recipe.title,
+                                  image: recipe.imageUrl,
+                                  meta: _cookedOn(recipe),
+                                  onTap: () => _openRecipe(recipe),
+                                ),
+                            ],
+                          ),
                         )
                       else
-                        for (final recipe in catalog.recent.take(3))
-                          Padding(
-                            padding: EdgeInsets.only(bottom: space.itemGap),
-                            child: _RecipeSummaryTile(
-                              summary: recipe,
-                              onChanged: _refreshHome,
-                            ),
-                          ),
-                      const SectionTitle('즐겨찾기'),
-                      if (catalog.favorites.isEmpty)
-                        const _HomeDataEmpty(
-                          icon: Icons.bookmark_outline_rounded,
-                          title: '아직 즐겨찾기 데이터가 없어요',
-                          body: '마음에 드는 레시피를 저장하면 바로 모아볼 수 있어요.',
-                        )
-                      else
-                        for (final recipe in catalog.favorites.take(3))
-                          Padding(
-                            padding: EdgeInsets.only(bottom: space.itemGap),
-                            child: _RecipeSummaryTile(
-                              summary: recipe,
-                              onChanged: _refreshHome,
-                            ),
-                          ),
-                      SectionTitle('전체 레시피 ${catalog.summaries.length}'),
-                      for (final recipe in catalog.summaries)
-                        Padding(
-                          padding: EdgeInsets.only(bottom: space.itemGap),
-                          child: _RecipeSummaryTile(
-                            summary: recipe,
-                            onChanged: _refreshHome,
+                        const _Gutter(
+                          child: _HomeDataEmpty(
+                            icon: Icons.history_rounded,
+                            title: '아직 최근 조리 데이터가 없어요',
+                            body: '첫 요리를 마치고 후기를 남기면 여기에 모여요.',
                           ),
                         ),
+                      if (catalog.favorites.isNotEmpty)
+                        _Gutter(
+                          child: RecipeRail(
+                            title: '다시 만들까요',
+                            trailing: '즐겨찾기 ${catalog.favorites.length} →',
+                            hasMeta: true,
+                            children: [
+                              for (final recipe in catalog.favorites)
+                                RecipePosterCard(
+                                  title: recipe.title,
+                                  image: recipe.imageUrl,
+                                  meta: _ratingOf(recipe),
+                                  onTap: () => _openRecipe(recipe),
+                                ),
+                            ],
+                          ),
+                        ),
+                      _Gutter(
+                        child: RecipeRail(
+                          title: '전체 레시피',
+                          trailing: '${catalog.summaries.length}개 →',
+                          children: [
+                            for (final recipe in catalog.summaries)
+                              RecipePosterCard(
+                                title: recipe.title,
+                                image: recipe.imageUrl,
+                                onTap: () => _openRecipe(recipe),
+                              ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: space.snugGap),
                     ],
                   );
                 },
@@ -511,6 +661,22 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 목록 좌우 여백. 히어로만 여백을 벗어나 화면 끝까지 가야 해서
+/// 여백을 ListView 가 아니라 섹션마다 준다.
+class _Gutter extends StatelessWidget {
+  const _Gutter({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: context.space.screenPaddingX),
+      child: child,
     );
   }
 }
@@ -524,12 +690,20 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
+/// 검색창을 처음 열었을 때 무엇을 칠 수 있는지 보여주는 예시.
+/// 카탈로그에서 실제로 결과가 많은 재료들이다.
+const _searchHints = ['두부', '계란', '김치', '돼지고기', '양파', '애호박', '감자'];
+
 class _SearchScreenState extends State<SearchScreen> {
   static const _pageSize = 9;
 
   late final RecipeRepository _searchRecipeRepository;
   late final TextEditingController _titleController;
   late final TextEditingController _ingredientController;
+
+  /// 요리 이름에서 '다음' 을 눌렀을 때 재료로 옮겨 갈 대상.
+  /// 이것이 없으면 iOS 에서 다음 키가 아무 일도 하지 않아 키보드가 그대로 남는다.
+  late final FocusNode _ingredientFocus;
   late Future<RecipePage> _results;
   String _title = '';
   String _ingredient = '';
@@ -543,6 +717,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchRecipeRepository = widget.recipeRepository ?? _recipeRepository;
     _titleController = TextEditingController();
     _ingredientController = TextEditingController();
+    _ingredientFocus = FocusNode();
     _results = _loadResults();
   }
 
@@ -550,7 +725,20 @@ class _SearchScreenState extends State<SearchScreen> {
   void dispose() {
     _titleController.dispose();
     _ingredientController.dispose();
+    _ingredientFocus.dispose();
     super.dispose();
+  }
+
+  void _openRecipe(RecipeSummary summary) {
+    unawaited(
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute<void>(
+              builder: (_) => _RecipeDetailLoader(summary: summary),
+            ),
+          )
+          .then((_) => _retry()),
+    );
   }
 
   Future<RecipePage> _loadResults() {
@@ -600,11 +788,13 @@ class _SearchScreenState extends State<SearchScreen> {
     final color = context.color;
     final space = context.space;
     return PageShell(
+      homeLogo: true,
       title: '검색',
       children: [
         TextField(
           controller: _titleController,
           textInputAction: TextInputAction.next,
+          onSubmitted: (_) => _ingredientFocus.requestFocus(),
           decoration: InputDecoration(
             prefixIcon: Icon(Icons.search_rounded, color: color.muted),
             labelText: '요리 이름',
@@ -614,6 +804,7 @@ class _SearchScreenState extends State<SearchScreen> {
         SizedBox(height: space.itemGap),
         TextField(
           controller: _ingredientController,
+          focusNode: _ingredientFocus,
           textInputAction: TextInputAction.search,
           onSubmitted: (_) => _submitSearch(),
           decoration: InputDecoration(
@@ -643,6 +834,21 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ],
         ),
+        const SectionTitle('이렇게 찾아보세요'),
+        Wrap(
+          spacing: space.snugGap,
+          runSpacing: space.snugGap,
+          children: [
+            for (final ingredient in _searchHints)
+              ActionChip(
+                label: Text(ingredient),
+                onPressed: () {
+                  _ingredientController.text = ingredient;
+                  _submitSearch();
+                },
+              ),
+          ],
+        ),
         FutureBuilder<RecipePage>(
           future: _results,
           builder: (context, snapshot) {
@@ -664,14 +870,29 @@ class _SearchScreenState extends State<SearchScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SectionTitle('검색 결과 ${result!.totalElements}'),
-                for (final recipe in items)
-                  Padding(
-                    padding: EdgeInsets.only(bottom: space.itemGap),
-                    child: _RecipeSummaryTile(
-                      summary: recipe,
-                      onChanged: _retry,
-                    ),
+                // 사진 그리드. 레시피를 고르는 근거는 사진이라 목록 대신
+                // 사진을 3열로 깐다.
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: space.snugGap,
+                    mainAxisSpacing: space.snugGap,
                   ),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final recipe = items[index];
+                    return RecipePosterCard(
+                      title: recipe.title,
+                      image: recipe.imageUrl,
+                      width: double.infinity,
+                      onTap: () => _openRecipe(recipe),
+                    );
+                  },
+                ),
+                SizedBox(height: space.blockGap),
                 if (result.totalPages > 1)
                   _RecipePagination(
                     page: result.page,
@@ -843,7 +1064,8 @@ class _MemoryScreenState extends State<MemoryScreen> {
     final type = context.type;
     final space = context.space;
     return PageShell(
-      title: '레시피 메모리',
+      homeLogo: true,
+      title: '기록',
       children: [
         Row(
           children: [
