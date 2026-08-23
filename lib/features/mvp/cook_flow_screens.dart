@@ -15,6 +15,7 @@ import '../cooking/application/cooking_session_store.dart';
 import '../cooking/application/timer_controller.dart';
 import '../cooking/data/exception_advice_api.dart';
 import '../cooking/data/elevenlabs_coach_controller.dart';
+import '../cooking/data/elevenlabs_session_api.dart';
 import '../cooking/domain/cooking_setup_snapshot.dart';
 import '../cooking/domain/cooking_session_state.dart';
 import '../cooking/domain/cooking_voice_router.dart';
@@ -1698,7 +1699,8 @@ class _CookSessionScreenState extends State<CookSessionScreen>
         _coachRecipePrompt,
       ) ??
       ElevenLabsCoachController(
-        agentId: const String.fromEnvironment('ELEVENLABS_AGENT_ID'),
+        fetchConversationToken: () =>
+            ElevenLabsSessionApi().fetchConversationToken(),
         buildRecipePrompt: _coachRecipePrompt,
         onStateChanged: _onCoachStateChanged,
         onTranscriptTurn: _recordCoachTurn,

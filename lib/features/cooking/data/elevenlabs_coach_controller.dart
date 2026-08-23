@@ -20,7 +20,7 @@ typedef CoachTranscriptHandler =
 /// 에이전트의 시스템 프롬프트가 `{{recipe_context}}`여야 한다(docs 참고).
 final class ElevenLabsCoachController implements CookingCoachEngine {
   ElevenLabsCoachController({
-    required this.agentId,
+    required this.fetchConversationToken,
     required this.buildRecipePrompt,
     required this.onStateChanged,
     this.onTranscriptTurn,
@@ -37,7 +37,9 @@ final class ElevenLabsCoachController implements CookingCoachEngine {
              clientTools: clientTools,
            ));
 
-  final String agentId;
+  /// 백엔드에서 conversation token을 발급받는다. 에이전트는 private이라 이 토큰
+  /// 없이는 연결할 수 없다 — API 키·agent ID는 서버에만 있다.
+  final Future<String> Function() fetchConversationToken;
 
   /// 이번 요리의 재료·단계 전문을 담은 시스템 프롬프트를 만든다.
   final String Function() buildRecipePrompt;
@@ -73,10 +75,6 @@ final class ElevenLabsCoachController implements CookingCoachEngine {
     if (_disposed || _phase != CookingCoachPhase.idle) {
       return;
     }
-    if (agentId.trim().isEmpty) {
-      _emit(CookingCoachPhase.idle, 'ELEVENLABS_AGENT_ID가 설정되지 않았어요.');
-      return;
-    }
     final generation = ++_generation;
     _emit(CookingCoachPhase.connecting, 'AI 코치를 연결하고 있어요.');
 
@@ -110,8 +108,12 @@ final class ElevenLabsCoachController implements CookingCoachEngine {
       // prompt override를 API 규격(객체)이 아닌 문자열로 보내 서버가
       // 세션을 거절하는 버그가 있다(1008 validation error 실측).
       // 대시보드 에이전트의 시스템 프롬프트가 {{recipe_context}}여야 한다.
+      final conversationToken = await fetchConversationToken();
+      if (!_isCurrent(generation)) {
+        return;
+      }
       await client.startSession(
-        agentId: agentId,
+        conversationToken: conversationToken,
         dynamicVariables: {'recipe_context': buildRecipePrompt()},
       );
       if (!_isCurrent(generation)) {
