@@ -164,13 +164,15 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  /// 이메일·비밀번호가 입력돼 있으면 테스트 서버 관리자 로그인, 비어 있으면
-  /// 기존 익명 발급으로 들어간다.
+  /// 테스트 서버 관리자 로그인 전용 — 익명 발급을 거치지 않는다.
   Future<void> _login(BuildContext context) async {
     final email = _email.text.trim();
     final password = _password.text;
     if (email.isEmpty || password.isEmpty) {
-      return _openHome(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이메일과 비밀번호를 입력해주세요.')),
+      );
+      return;
     }
     try {
       await BetaUserRepository().loginAsAdmin(email: email, password: password);
