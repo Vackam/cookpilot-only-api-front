@@ -24,8 +24,23 @@ const _tasteOptions = [
   '제육볶음',
 ];
 
-class AuthScreen extends StatelessWidget {
+class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
+
+  @override
+  State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> {
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,16 +127,20 @@ class AuthScreen extends StatelessWidget {
             ],
           ),
         ),
-        const TextField(decoration: InputDecoration(labelText: '이메일')),
+        TextField(
+          controller: _email,
+          decoration: const InputDecoration(labelText: '이메일'),
+        ),
         SizedBox(height: space.itemGap),
-        const TextField(
+        TextField(
+          controller: _password,
           obscureText: true,
-          decoration: InputDecoration(labelText: '비밀번호'),
+          decoration: const InputDecoration(labelText: '비밀번호'),
         ),
         SizedBox(height: space.blockGap),
         PressableScale(
           child: FilledButton(
-            onPressed: () => _openHome(context),
+            onPressed: () => _login(context),
             child: const Text('로그인'),
           ),
         ),
@@ -143,6 +162,30 @@ class AuthScreen extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  /// 이메일·비밀번호가 입력돼 있으면 테스트 서버 관리자 로그인, 비어 있으면
+  /// 기존 익명 발급으로 들어간다.
+  Future<void> _login(BuildContext context) async {
+    final email = _email.text.trim();
+    final password = _password.text;
+    if (email.isEmpty || password.isEmpty) {
+      return _openHome(context);
+    }
+    try {
+      await BetaUserRepository().loginAsAdmin(email: email, password: password);
+      if (!context.mounted) return;
+      unawaited(
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => const MainShell()),
+        ),
+      );
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$error')));
+    }
   }
 
   Future<void> _openHome(BuildContext context) async {

@@ -166,6 +166,36 @@ class BetaUserRepository {
     return createdUser;
   }
 
+  /// 테스트 서버용 관리자 로그인. 성공하면 익명 발급과 같은 저장·세션 흐름을
+  /// 타므로 이후 API 호출은 전부 이 계정으로 나간다 — 재설치해도 같은 계정.
+  Future<BetaUser> loginAsAdmin({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse('$_baseUrl/api/v1/users/admin-login'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email, 'password': password}),
+        )
+        .timeout(requestTimeout);
+
+    // 백엔드는 자격 불일치를 404로 숨긴다(docs/feat-admin-login.md).
+    if (response.statusCode == 404) {
+      throw const BetaUserException('이메일 또는 비밀번호가 올바르지 않습니다.');
+    }
+    if (response.statusCode != 200) {
+      throw BetaUserException('로그인에 실패했습니다. (${response.statusCode})');
+    }
+    final user = _decodeUser(response.body);
+    final persisted = await _storage.writeUserId(user.id);
+    if (!persisted) {
+      throw const BetaUserException('사용자 정보를 기기에 저장하지 못했습니다.');
+    }
+    BetaUserSession.setCurrentUser(user);
+    return user;
+  }
+
   Future<String> _ensureInstallationId() async {
     final savedId = await _storage.readInstallationId();
     if (savedId != null && _isUuid(savedId)) {
