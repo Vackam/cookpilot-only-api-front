@@ -23,16 +23,15 @@ class BetaUser {
     final id = json['id'];
     final displayName = json['displayName'];
     final betaNumber = json['betaNumber'];
-    if (id is! String ||
-        !_isUuid(id) ||
-        displayName is! String ||
-        betaNumber is! num) {
+    if (id is! String || !_isUuid(id) || displayName is! String) {
       throw const BetaUserException('사용자 발급 응답 형식이 올바르지 않습니다.');
     }
     return BetaUser(
       id: id,
       displayName: displayName,
-      betaNumber: betaNumber.toInt(),
+      // 테스트 서버의 관리자 로그인 응답에는 betaNumber가 없다 — 표시용
+      // 값이라 없으면 0으로 둔다.
+      betaNumber: betaNumber is num ? betaNumber.toInt() : 0,
     );
   }
 
