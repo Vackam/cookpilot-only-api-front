@@ -164,13 +164,14 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  /// 테스트 서버 관리자 로그인 전용 — 익명 발급을 거치지 않는다.
+  /// 테스트 서버 관리자 로그인 전용 — 익명 발급을 거치지 않고, 관리자
+  /// 자격(1/1)일 때만 서버를 호출한다.
   Future<void> _login(BuildContext context) async {
     final email = _email.text.trim();
     final password = _password.text;
-    if (email.isEmpty || password.isEmpty) {
+    if (email != '1' || password != '1') {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이메일과 비밀번호를 입력해주세요.')),
+        const SnackBar(content: Text('이메일 또는 비밀번호가 올바르지 않습니다.')),
       );
       return;
     }
